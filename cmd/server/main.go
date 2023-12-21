@@ -45,7 +45,7 @@ func update(res http.ResponseWriter, req *http.Request) {
 	param := strings.Split(url, "/")
 
 	if len(param) < 3 {
-		http.Error(res, "URI path is to short", http.StatusBadRequest)
+		http.Error(res, "URI path is to short", http.StatusNotFound)
 		return
 	}
 
@@ -59,7 +59,7 @@ func update(res http.ResponseWriter, req *http.Request) {
 		g, err := strconv.ParseFloat(param[2], 64)
 
 		if err != nil {
-			http.Error(res, err.Error(), http.StatusInternalServerError)
+			http.Error(res, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -68,7 +68,7 @@ func update(res http.ResponseWriter, req *http.Request) {
 		c, err := strconv.ParseInt(param[2], 10, 64)
 
 		if err != nil {
-			http.Error(res, err.Error(), http.StatusInternalServerError)
+			http.Error(res, err.Error(), http.StatusBadRequest)
 			return
 		}
 
