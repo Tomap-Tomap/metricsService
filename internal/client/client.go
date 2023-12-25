@@ -23,6 +23,8 @@ func SendGauge(name, value string) error {
 		return err
 	}
 
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("status not OK")
 	}
@@ -38,6 +40,8 @@ func SendCounter(name, value string) error {
 	if err != nil {
 		return err
 	}
+
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("status not OK")
