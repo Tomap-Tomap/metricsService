@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-type Storager interface {
+type Repositories interface {
 	addUnit(u StorageUnit) error
 }
 
