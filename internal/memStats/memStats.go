@@ -13,7 +13,7 @@ type StringMS struct {
 var ms runtime.MemStats
 
 func init() {
-	runtime.ReadMemStats(&ms)
+	//runtime.ReadMemStats(&ms)
 }
 
 func ReadMemStats() {

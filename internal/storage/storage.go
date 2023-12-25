@@ -48,6 +48,7 @@ func (m memStorage) AddUnit(u StorageUnit) error {
 }
 
 func NewStorageUnit(url string) (StorageUnit, error) {
+	url, _ = strings.CutPrefix(url, "/")
 	param := strings.Split(url, "/")
 
 	if len(param) < 3 {

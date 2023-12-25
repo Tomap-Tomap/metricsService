@@ -25,4 +25,7 @@ func Update(res http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	}
+
+	res.Header().Add("Content-Type", "text/plain; charset=utf-8")
+	res.WriteHeader(200)
 }

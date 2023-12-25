@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,12 +8,16 @@ import (
 	memstats "github.com/DarkOmap/metricsService/internal/memStats"
 )
 
-const serviceAddr = "http://localhost:8080/update"
+var ServiceAddr string
+
+func init() {
+	ServiceAddr = "http://localhost:8080/update"
+}
 
 func SendGauge(name, value string) error {
-	respString := fmt.Sprintf("%s/gauge/%s/%s", serviceAddr, name, value)
-	buf := bytes.NewReader([]byte{})
-	resp, err := http.Post(respString, "text/plain", buf)
+	respString := fmt.Sprintf("%s/gauge/%s/%s", ServiceAddr, name, value)
+
+	resp, err := http.Post(respString, "text/plain", nil)
 
 	if err != nil {
 		return err
@@ -28,9 +31,9 @@ func SendGauge(name, value string) error {
 }
 
 func SendCounter(name, value string) error {
-	respString := fmt.Sprintf("%s/counter/%s/%s", serviceAddr, name, value)
-	buf := bytes.NewReader([]byte{})
-	resp, err := http.Post(respString, "text/plain", buf)
+	respString := fmt.Sprintf("%s/counter/%s/%s", ServiceAddr, name, value)
+
+	resp, err := http.Post(respString, "text/plain", nil)
 
 	if err != nil {
 		return err
