@@ -3,6 +3,7 @@ package client
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	memstats "github.com/DarkOmap/metricsService/internal/memStats"
@@ -41,7 +42,7 @@ func TestSendGauge(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
 			defer ts.Close()
 
-			ServiceAddr = ts.URL
+			ServiceAddr = strings.TrimPrefix(ts.URL, "http://")
 
 			err := SendGauge(tt.args.name, tt.args.value)
 
@@ -87,7 +88,7 @@ func TestSendCounter(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
 			defer ts.Close()
 
-			ServiceAddr = ts.URL
+			ServiceAddr = strings.TrimPrefix(ts.URL, "http://")
 
 			err := SendCounter(tt.args.name, tt.args.value)
 
@@ -138,7 +139,7 @@ func TestPushStats(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
 			defer ts.Close()
 
-			ServiceAddr = ts.URL
+			ServiceAddr = strings.TrimPrefix(ts.URL, "http://")
 
 			err := PushStats(tt.args.ms)
 			if tt.wantErr {

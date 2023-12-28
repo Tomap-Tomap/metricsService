@@ -11,17 +11,16 @@ import (
 var ServiceAddr string
 
 func init() {
-	ServiceAddr = "http://localhost:8080/update"
+	ServiceAddr = "localhost:8080/update"
 }
 
 func SendGauge(name, value string) error {
 	param := map[string]string{"name": name, "value": value}
 
 	client := resty.New()
-
 	resp, err := client.R().SetPathParams(param).
 		SetHeader("Content-Type", "text/plain").
-		Post(ServiceAddr + "/gauge/{name}/{value}")
+		Post("http://" + ServiceAddr + "/gauge/{name}/{value}")
 
 	if err != nil {
 		return err
@@ -41,7 +40,7 @@ func SendCounter(name, value string) error {
 
 	resp, err := client.R().SetPathParams(param).
 		SetHeader("Content-Type", "text/plain").
-		Post(ServiceAddr + "/counter/{name}/{value}")
+		Post("http://" + ServiceAddr + "/counter/{name}/{value}")
 
 	if err != nil {
 		return err
