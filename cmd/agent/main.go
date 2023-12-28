@@ -10,8 +10,12 @@ import (
 )
 
 func main() {
+	parseFlags()
+
 	timeToPush := uint(0)
 	pollCount := 0
+
+	client.ServiceAddr = flagRunAddr + "/update"
 
 	for {
 		if timeToPush == reportInterval {
