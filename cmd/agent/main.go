@@ -10,12 +10,15 @@ import (
 )
 
 func main() {
-	timeToPush := byte(0)
-	sleepTime := byte(2)
+	parseFlags()
+
+	timeToPush := uint(0)
 	pollCount := 0
 
+	client.ServiceAddr = flagRunAddr + "/update"
+
 	for {
-		if timeToPush == 10 {
+		if timeToPush == reportInterval {
 			ms := memstats.GetMemStatsForServer()
 			err := client.PushStats(ms)
 
@@ -41,8 +44,8 @@ func main() {
 
 		memstats.ReadMemStats()
 
-		time.Sleep(time.Duration(sleepTime) * time.Second)
-		timeToPush += sleepTime
+		time.Sleep(time.Duration(pollInterval) * time.Second)
+		timeToPush += pollInterval
 		pollCount++
 	}
 }
