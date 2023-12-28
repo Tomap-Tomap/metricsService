@@ -2,10 +2,10 @@ package client
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	memstats "github.com/DarkOmap/metricsService/internal/memStats"
+	"github.com/go-resty/resty/v2"
 )
 
 var ServiceAddr string
@@ -15,17 +15,19 @@ func init() {
 }
 
 func SendGauge(name, value string) error {
-	respString := fmt.Sprintf("%s/gauge/%s/%s", ServiceAddr, name, value)
+	param := map[string]string{"name": name, "value": value}
 
-	resp, err := http.Post(respString, "text/plain", nil)
+	client := resty.New()
+
+	resp, err := client.R().SetPathParams(param).
+		SetHeader("Content-Type", "text/plain").
+		Post(ServiceAddr + "/gauge/{name}/{value}")
 
 	if err != nil {
 		return err
 	}
 
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode() != http.StatusOK {
 		return errors.New("status not OK")
 	}
 
@@ -33,17 +35,19 @@ func SendGauge(name, value string) error {
 }
 
 func SendCounter(name, value string) error {
-	respString := fmt.Sprintf("%s/counter/%s/%s", ServiceAddr, name, value)
+	param := map[string]string{"name": name, "value": value}
 
-	resp, err := http.Post(respString, "text/plain", nil)
+	client := resty.New()
+
+	resp, err := client.R().SetPathParams(param).
+		SetHeader("Content-Type", "text/plain").
+		Post(ServiceAddr + "/counter/{name}/{value}")
 
 	if err != nil {
 		return err
 	}
 
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode() != http.StatusOK {
 		return errors.New("status not OK")
 	}
 

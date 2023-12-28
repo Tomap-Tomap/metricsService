@@ -3,54 +3,229 @@ package handlers
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/DarkOmap/metricsService/internal/storage"
+	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/assert"
 )
 
+const defaultCT = "text/plain; charset=utf-8"
+
 func TestUpdate(t *testing.T) {
-	globalCT := "text/plain; charset=utf-8"
+	r := ServiceRouter()
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
 	type want struct {
 		code        int
 		contentType string
 	}
+	type param struct {
+		method, url string
+	}
 	tests := []struct {
-		name string
-		req  *http.Request
-		want want
+		name  string
+		param param
+		want  want
 	}{
 		{
-			name: "get method test",
-			req:  httptest.NewRequest(http.MethodGet, "/gauge/test/123", nil),
-			want: want{405, globalCT},
+			name:  "method get",
+			param: param{http.MethodGet, "/update/gauge/test/123"},
+			want:  want{http.StatusMethodNotAllowed, ""},
 		},
 		{
-			name: "short url test",
-			req:  httptest.NewRequest(http.MethodPost, "/gauge/test", nil),
-			want: want{404, globalCT},
+			name:  "short url",
+			param: param{http.MethodPost, "/update/gauge/test"},
+			want:  want{http.StatusNotFound, defaultCT},
 		},
 		{
-			name: "wrong value test",
-			req:  httptest.NewRequest(http.MethodPost, "/gauge/test/wrong", nil),
-			want: want{400, globalCT},
+			name:  "wrong gauge value",
+			param: param{http.MethodPost, "/update/gauge/test/wrong"},
+			want:  want{http.StatusBadRequest, defaultCT},
 		},
 		{
-			name: "positive test",
-			req:  httptest.NewRequest(http.MethodPost, "/gauge/test/12", nil),
-			want: want{200, globalCT},
+			name:  "wrong counter value",
+			param: param{http.MethodPost, "/update/counter/test/wrong"},
+			want:  want{http.StatusBadRequest, defaultCT},
+		},
+		{
+			name:  "positive gauge",
+			param: param{http.MethodPost, "/update/gauge/test/12"},
+			want:  want{http.StatusOK, defaultCT},
+		},
+		{
+			name:  "positive counter",
+			param: param{http.MethodPost, "/update/counter/test/12"},
+			want:  want{http.StatusOK, defaultCT},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			Update(w, tt.req)
+			req := resty.New().R()
+			req.Method = tt.param.method
+			req.URL = srv.URL + tt.param.url
 
-			res := w.Result()
+			res := testRequest(t, srv, tt.param.method, tt.param.url)
+			assert.Equal(t, tt.want.code, res.StatusCode())
+			assert.Equal(t, tt.want.contentType, strings.Join(res.Header().Values("Content-Type"), "; "))
+		})
+	}
+}
 
-			defer res.Body.Close()
+func testRequest(t *testing.T, srv *httptest.Server, method, url string) *resty.Response {
+	req := resty.New().R()
+	req.Method = method
+	req.URL = srv.URL + url
 
-			assert.Equal(t, tt.want.code, res.StatusCode)
-			assert.Equal(t, tt.want.contentType, res.Header.Get("Content-Type"))
+	res, err := req.Send()
+	assert.NoError(t, err)
+
+	return res
+}
+
+func Test_value(t *testing.T) {
+	r := ServiceRouter()
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	ms = storage.NewMemStorage()
+
+	g, _ := storage.ParseGauge("1")
+	ms.AddValue(g, "test")
+
+	c, _ := storage.ParseCounter("1")
+	ms.AddValue(c, "test")
+
+	type want struct {
+		code        int
+		contentType string
+		value       string
+	}
+	type param struct {
+		method, url string
+	}
+	tests := []struct {
+		name  string
+		param param
+		want  want
+	}{
+		{
+			name:  "method post",
+			param: param{http.MethodPost, "/value/gauge/test"},
+			want:  want{http.StatusMethodNotAllowed, "", ""},
+		},
+		{
+			name:  "short url",
+			param: param{http.MethodGet, "/value/gauge"},
+			want:  want{http.StatusNotFound, defaultCT, "404 page not found"},
+		},
+		{
+			name:  "wrong type",
+			param: param{http.MethodGet, "/value/wrong/test"},
+			want:  want{http.StatusNotFound, defaultCT, "unknown type"},
+		},
+		{
+			name:  "wrong name",
+			param: param{http.MethodGet, "/value/counter/wrong"},
+			want:  want{http.StatusNotFound, defaultCT, "value not found"},
+		},
+		{
+			name:  "positive gauge",
+			param: param{http.MethodGet, "/value/gauge/test"},
+			want:  want{http.StatusOK, defaultCT, "1"},
+		},
+		{
+			name:  "positive counter",
+			param: param{http.MethodGet, "/value/counter/test"},
+			want:  want{http.StatusOK, defaultCT, "1"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tt.param.method
+			req.URL = srv.URL + tt.param.url
+
+			res := testRequest(t, srv, tt.param.method, tt.param.url)
+			assert.Equal(t, tt.want.code, res.StatusCode())
+			assert.Equal(t, tt.want.contentType, strings.Join(res.Header().Values("Content-Type"), "; "))
+			assert.Equal(t, tt.want.value, res.String())
+		})
+	}
+}
+
+func Test_all(t *testing.T) {
+	r := ServiceRouter()
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	ms = storage.NewMemStorage()
+
+	g, _ := storage.ParseGauge("1")
+	ms.AddValue(g, "test")
+
+	c, _ := storage.ParseCounter("1")
+	ms.AddValue(c, "test")
+
+	htmlText := `<!DOCTYPE html>
+	<html>
+	<head>
+	<meta charset="UTF-8">
+	<title>add data from service</title>
+	</head>
+	<body>
+	<table>
+	<tr><th>name</th><th>value</th></tr>
+	<tr><td>test</td><td>1</td></tr>
+	<tr><td>test</td><td>1</td></tr>
+	</table>
+	</body>
+	</html>`
+
+	type want struct {
+		code        int
+		contentType string
+		value       string
+	}
+	type param struct {
+		method, url string
+	}
+	tests := []struct {
+		name  string
+		param param
+		want  want
+	}{
+		{
+			name:  "method post",
+			param: param{http.MethodPost, "/"},
+			want:  want{http.StatusMethodNotAllowed, "", ""},
+		},
+		{
+			name:  "wrong name",
+			param: param{http.MethodGet, "/value/counter/wrong"},
+			want:  want{http.StatusNotFound, defaultCT, "value not found"},
+		},
+		{
+			name:  "positive",
+			param: param{http.MethodGet, "/"},
+			want:  want{http.StatusOK, "text/html; charset=utf-8", htmlText},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := resty.New().R()
+			req.Method = tt.param.method
+			req.URL = srv.URL + tt.param.url
+
+			res := testRequest(t, srv, tt.param.method, tt.param.url)
+			assert.Equal(t, tt.want.code, res.StatusCode())
+			assert.Equal(t, tt.want.contentType, strings.Join(res.Header().Values("Content-Type"), "; "))
+			assert.Equal(t, strings.ReplaceAll(tt.want.value, "\n\t", ""), strings.ReplaceAll(res.String(), "\n\t", ""))
 		})
 	}
 }

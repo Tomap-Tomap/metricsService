@@ -1,31 +1,120 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/DarkOmap/metricsService/internal/storage"
+	"github.com/go-chi/chi/v5"
 )
 
-func Update(res http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodPost {
-		http.Error(res, "only POST requests are allowed!", http.StatusMethodNotAllowed)
+var ms storage.MemStorage
+
+func init() {
+	ms = storage.NewMemStorage()
+}
+
+func updateCounter(res http.ResponseWriter, req *http.Request) {
+	res.Header().Add("Content-Type", "text/plain")
+	res.Header().Add("Content-Type", "charset=utf-8")
+
+	v, err := storage.ParseCounter(chi.URLParam(req, "value"))
+
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	url := req.URL.RequestURI()
-	su, err := storage.NewStorageUnit(url)
+	err = ms.AddValue(v, chi.URLParam(req, "name"))
+
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
+	}
+}
+
+func updateGauge(res http.ResponseWriter, req *http.Request) {
+	res.Header().Add("Content-Type", "text/plain")
+	res.Header().Add("Content-Type", "charset=utf-8")
+
+	v, err := storage.ParseGauge(chi.URLParam(req, "value"))
+
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = ms.AddValue(v, chi.URLParam(req, "name"))
+
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
+	}
+}
+
+func value(res http.ResponseWriter, req *http.Request) {
+	res.Header().Add("Content-Type", "text/plain")
+	res.Header().Add("Content-Type", "charset=utf-8")
+
+	t, err := storage.ParseType(chi.URLParam(req, "type"))
 
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	err = storage.Storage.AddUnit(su)
+	v, err := ms.GetValue(t, chi.URLParam(req, "name"))
 
 	if err != nil {
-		http.Error(res, err.Error(), http.StatusBadRequest)
+		http.Error(res, err.Error(), http.StatusNotFound)
+		return
 	}
 
-	res.Header().Add("Content-Type", "text/plain; charset=utf-8")
-	res.WriteHeader(200)
+	fmt.Fprint(res, v)
+}
+
+func all(res http.ResponseWriter, req *http.Request) {
+	res.Header().Add("Content-Type", "text/html")
+	res.Header().Add("Content-Type", "charset=utf-8")
+
+	htmlText := `<!DOCTYPE html>
+	<html>
+	<head>
+	<meta charset="UTF-8">
+	<title>add data from service</title>
+	</head>
+	<body>
+	<table>
+	<tr><th>name</th><th>value</th></tr>`
+
+	tableTemplate := "<tr><td>%s</td><td>%v</td></tr>"
+
+	tableResult := ms.GetData()
+
+	tableHTML := ""
+
+	for _, val := range tableResult {
+		tableHTML += fmt.Sprintf(tableTemplate, val.Name, val.Value)
+	}
+
+	htmlText += tableHTML + "</table></body></html>"
+
+	fmt.Fprint(res, htmlText)
+}
+
+func ServiceRouter() chi.Router {
+	r := chi.NewRouter()
+
+	r.Route("/", func(r chi.Router) {
+		r.Get("/", all)
+		r.Route("/update", func(r chi.Router) {
+			r.Post("/counter/{name}/{value}", updateCounter)
+			r.Post("/gauge/{name}/{value}", updateGauge)
+		})
+		r.Route("/value", func(r chi.Router) {
+			r.Get("/{type}/{name}", value)
+		})
+	})
+
+	return r
 }
