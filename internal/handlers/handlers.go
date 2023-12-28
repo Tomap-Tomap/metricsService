@@ -18,26 +18,20 @@ func updateCounter(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("Content-Type", "text/plain")
 	res.Header().Add("Content-Type", "charset=utf-8")
 
-	v, err := storage.ParseCounter(chi.URLParam(req, "value"))
+	t, err := storage.ParseType(chi.URLParam(req, "type"))
 
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	err = ms.AddValue(v, chi.URLParam(req, "name"))
+	var v storage.Typer
 
-	if err != nil {
-		http.Error(res, err.Error(), http.StatusBadRequest)
-		return
+	if t == storage.CounterType {
+		v, err = storage.ParseCounter(chi.URLParam(req, "value"))
+	} else if t == storage.GaugeType {
+		v, err = storage.ParseGauge(chi.URLParam(req, "value"))
 	}
-}
-
-func updateGauge(res http.ResponseWriter, req *http.Request) {
-	res.Header().Add("Content-Type", "text/plain")
-	res.Header().Add("Content-Type", "charset=utf-8")
-
-	v, err := storage.ParseGauge(chi.URLParam(req, "value"))
 
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusBadRequest)
@@ -108,8 +102,7 @@ func ServiceRouter() chi.Router {
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", all)
 		r.Route("/update", func(r chi.Router) {
-			r.Post("/counter/{name}/{value}", updateCounter)
-			r.Post("/gauge/{name}/{value}", updateGauge)
+			r.Post("/{type}/{name}/{value}", updateCounter)
 		})
 		r.Route("/value", func(r chi.Router) {
 			r.Get("/{type}/{name}", value)

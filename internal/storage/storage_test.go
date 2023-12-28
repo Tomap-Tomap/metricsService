@@ -19,7 +19,7 @@ func Test_memStorage_AddValue(t *testing.T) {
 		counters map[string]counter
 	}
 	type args struct {
-		value typer
+		value Typer
 		name  string
 	}
 	tests := []struct {
@@ -93,19 +93,19 @@ func Test_memStorage_GetValue(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    typer
+		want    Typer
 		wantErr bool
 	}{
 		{
 			name:    "gauge not found",
 			fields:  fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:    args{gaugeType, "wrongName"},
+			args:    args{GaugeType, "wrongName"},
 			wantErr: true,
 		},
 		{
 			name:    "counter not found",
 			fields:  fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:    args{counterType, "wrongName"},
+			args:    args{CounterType, "wrongName"},
 			wantErr: true,
 		},
 		{
@@ -117,13 +117,13 @@ func Test_memStorage_GetValue(t *testing.T) {
 		{
 			name:   "get gauge",
 			fields: fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:   args{gaugeType, "test"},
+			args:   args{GaugeType, "test"},
 			want:   gauge(0.12),
 		},
 		{
 			name:   "get counter",
 			fields: fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:   args{counterType, "test"},
+			args:   args{CounterType, "test"},
 			want:   counter(1),
 		},
 	}
@@ -199,22 +199,22 @@ func TestParseType(t *testing.T) {
 		{
 			name: "gauge type",
 			arg:  "gauge",
-			want: gaugeType,
+			want: GaugeType,
 		},
 		{
 			name: "counter type",
 			arg:  "counter",
-			want: counterType,
+			want: CounterType,
 		},
 		{
 			name: "gauge type upper",
 			arg:  "Gauge",
-			want: gaugeType,
+			want: GaugeType,
 		},
 		{
 			name: "counter type upper",
 			arg:  "Counter",
-			want: counterType,
+			want: CounterType,
 		},
 	}
 	for _, tt := range tests {

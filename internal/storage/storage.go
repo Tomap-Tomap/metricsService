@@ -7,34 +7,34 @@ import (
 )
 
 const (
-	gaugeType = iota
-	counterType
+	GaugeType = iota
+	CounterType
 )
 
-type typer interface {
+type Typer interface {
 	getType() int
 }
 
 type gauge float64
 
 func (g gauge) getType() int {
-	return gaugeType
+	return GaugeType
 }
 
 type counter int64
 
 func (c counter) getType() int {
-	return counterType
+	return CounterType
 }
 
 type dataResult struct {
 	Name  string
-	Value typer
+	Value Typer
 }
 
 type Repositories interface {
-	AddValue(value typer, name string) error
-	GetValue(valueType int, name string) (typer, error)
+	AddValue(value Typer, name string) error
+	GetValue(valueType int, name string) (Typer, error)
 	GetData() []dataResult
 }
 
@@ -51,7 +51,7 @@ func NewMemStorage() MemStorage {
 	return ms
 }
 
-func (m *MemStorage) AddValue(value typer, name string) error {
+func (m *MemStorage) AddValue(value Typer, name string) error {
 	switch v := value.(type) {
 	case gauge:
 		m.gauges[name] = v
@@ -64,9 +64,9 @@ func (m *MemStorage) AddValue(value typer, name string) error {
 	return nil
 }
 
-func (m *MemStorage) GetValue(valueType int, name string) (typer, error) {
+func (m *MemStorage) GetValue(valueType int, name string) (Typer, error) {
 	switch valueType {
-	case gaugeType:
+	case GaugeType:
 		v, ok := m.gauges[name]
 
 		if !ok {
@@ -74,7 +74,7 @@ func (m *MemStorage) GetValue(valueType int, name string) (typer, error) {
 		}
 
 		return v, nil
-	case counterType:
+	case CounterType:
 		v, ok := m.counters[name]
 
 		if !ok {
@@ -104,9 +104,9 @@ func (m *MemStorage) GetData() []dataResult {
 func ParseType(t string) (int, error) {
 	switch strings.ToLower(t) {
 	case "gauge":
-		return gaugeType, nil
+		return GaugeType, nil
 	case "counter":
-		return counterType, nil
+		return CounterType, nil
 	default:
 		return -1, errors.New("unknown type")
 	}
