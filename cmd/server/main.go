@@ -6,15 +6,10 @@ import (
 	"github.com/DarkOmap/metricsService/internal/handlers"
 )
 
-const (
-	updatePath = "/update/"
-)
-
 func main() {
-	mux := http.NewServeMux()
-	mux.Handle(updatePath, http.StripPrefix(updatePath, http.HandlerFunc(handlers.Update)))
+	r := handlers.ServiceRouter()
 
-	err := http.ListenAndServe(":8080", mux)
+	err := http.ListenAndServe(":8080", r)
 
 	if err != nil {
 		panic(err)
