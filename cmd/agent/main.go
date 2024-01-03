@@ -7,15 +7,16 @@ import (
 
 	"github.com/DarkOmap/metricsService/internal/client"
 	memstats "github.com/DarkOmap/metricsService/internal/memStats"
+	"github.com/DarkOmap/metricsService/internal/parameters"
 )
 
 func main() {
-	parseFlags()
+	listenAddr, reportInterval, pollInterval := parameters.ParseFlagsAgent()
 
 	timeToPush := uint(0)
 	pollCount := 0
 
-	client.ServiceAddr = flagRunAddr + "/update"
+	client.ServiceAddr = listenAddr + "/update"
 
 	for {
 		if timeToPush == reportInterval {

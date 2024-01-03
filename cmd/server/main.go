@@ -4,10 +4,11 @@ import (
 	"net/http"
 
 	"github.com/DarkOmap/metricsService/internal/handlers"
+	"github.com/DarkOmap/metricsService/internal/parameters"
 )
 
 func main() {
-	parseFlags()
+	flagRunAddr := parameters.ParseFlagsServer()
 
 	r := handlers.ServiceRouter()
 
