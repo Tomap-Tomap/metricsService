@@ -14,7 +14,9 @@ import (
 const defaultCT = "text/plain; charset=utf-8"
 
 func TestUpdate(t *testing.T) {
-	r := ServiceRouter()
+	ms := storage.NewMemStorage()
+	sh := NewServiceHandlers(ms)
+	r := ServiceRouter(sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -87,18 +89,18 @@ func testRequest(t *testing.T, srv *httptest.Server, method, url string) *resty.
 }
 
 func Test_value(t *testing.T) {
-	r := ServiceRouter()
+	ms := storage.NewMemStorage()
+	sh := NewServiceHandlers(ms)
+	r := ServiceRouter(sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	ms = storage.NewMemStorage()
-
 	g, _ := storage.ParseGauge("1")
-	ms.AddValue(g, "test")
+	sh.ms.AddValue(g, "test")
 
 	c, _ := storage.ParseCounter("1")
-	ms.AddValue(c, "test")
+	sh.ms.AddValue(c, "test")
 
 	type want struct {
 		code        int
@@ -159,32 +161,44 @@ func Test_value(t *testing.T) {
 }
 
 func Test_all(t *testing.T) {
-	r := ServiceRouter()
+	ms := storage.NewMemStorage()
+	sh := NewServiceHandlers(ms)
+	r := ServiceRouter(sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	ms = storage.NewMemStorage()
-
 	g, _ := storage.ParseGauge("1")
-	ms.AddValue(g, "test")
+	sh.ms.AddValue(g, "test")
 
 	c, _ := storage.ParseCounter("1")
-	ms.AddValue(c, "test")
+	sh.ms.AddValue(c, "test")
 
 	htmlText := `<!DOCTYPE html>
 	<html>
+	
 	<head>
-	<meta charset="UTF-8">
-	<title>add data from service</title>
+		<meta charset="UTF-8">
+		<title>add data from service</title>
 	</head>
+	
 	<body>
-	<table>
-	<tr><th>name</th><th>value</th></tr>
-	<tr><td>test</td><td>1</td></tr>
-	<tr><td>test</td><td>1</td></tr>
-	</table>
+		<table>
+			<tr>
+				<th>name</th>
+				<th>value</th>
+			</tr>
+			<tr>
+				<td>test</td>
+				<td>1</td>
+			</tr>
+			<tr>
+				<td>test</td>
+				<td>1</td>
+			</tr>
+		</table>
 	</body>
+	
 	</html>`
 
 	type want struct {
@@ -225,7 +239,7 @@ func Test_all(t *testing.T) {
 			res := testRequest(t, srv, tt.param.method, tt.param.url)
 			assert.Equal(t, tt.want.code, res.StatusCode())
 			assert.Equal(t, tt.want.contentType, strings.Join(res.Header().Values("Content-Type"), "; "))
-			assert.Equal(t, strings.ReplaceAll(tt.want.value, "\n\t", ""), strings.ReplaceAll(res.String(), "\n\t", ""))
+			assert.Equal(t, strings.ReplaceAll(strings.ReplaceAll(tt.want.value, "\t", ""), "\n", ""), strings.ReplaceAll(strings.ReplaceAll(res.String(), "\t", ""), "\n", ""))
 		})
 	}
 }

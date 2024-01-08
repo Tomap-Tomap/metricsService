@@ -5,12 +5,15 @@ import (
 
 	"github.com/DarkOmap/metricsService/internal/handlers"
 	"github.com/DarkOmap/metricsService/internal/parameters"
+	"github.com/DarkOmap/metricsService/internal/storage"
 )
 
 func main() {
 	flagRunAddr := parameters.ParseFlagsServer()
 
-	r := handlers.ServiceRouter()
+	ms := storage.NewMemStorage()
+	sh := handlers.NewServiceHandlers(ms)
+	r := handlers.ServiceRouter(sh)
 
 	err := http.ListenAndServe(flagRunAddr, r)
 

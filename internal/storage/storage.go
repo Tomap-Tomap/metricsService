@@ -43,12 +43,12 @@ type MemStorage struct {
 	counters map[string]counter
 }
 
-func NewMemStorage() MemStorage {
+func NewMemStorage() *MemStorage {
 	ms := MemStorage{}
 	ms.counters = make(map[string]counter)
 	ms.gauges = make(map[string]gauge)
 
-	return ms
+	return &ms
 }
 
 func (m *MemStorage) AddValue(value Typer, name string) error {

@@ -2,19 +2,18 @@ package handlers
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 
 	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-chi/chi/v5"
 )
 
-var ms storage.MemStorage
-
-func init() {
-	ms = storage.NewMemStorage()
+type ServiceHandlers struct {
+	ms storage.Repositories
 }
 
-func updateCounter(res http.ResponseWriter, req *http.Request) {
+func (sh *ServiceHandlers) updateCounter(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("Content-Type", "text/plain")
 	res.Header().Add("Content-Type", "charset=utf-8")
 
@@ -38,7 +37,7 @@ func updateCounter(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = ms.AddValue(v, chi.URLParam(req, "name"))
+	err = sh.ms.AddValue(v, chi.URLParam(req, "name"))
 
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusBadRequest)
@@ -46,7 +45,7 @@ func updateCounter(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func value(res http.ResponseWriter, req *http.Request) {
+func (sh *ServiceHandlers) value(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("Content-Type", "text/plain")
 	res.Header().Add("Content-Type", "charset=utf-8")
 
@@ -57,7 +56,7 @@ func value(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	v, err := ms.GetValue(t, chi.URLParam(req, "name"))
+	v, err := sh.ms.GetValue(t, chi.URLParam(req, "name"))
 
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusNotFound)
@@ -67,45 +66,66 @@ func value(res http.ResponseWriter, req *http.Request) {
 	fmt.Fprint(res, v)
 }
 
-func all(res http.ResponseWriter, req *http.Request) {
+func (sh *ServiceHandlers) all(res http.ResponseWriter, req *http.Request) {
+	tmpl := `<!DOCTYPE html>
+	<html>
+	
+	<head>
+		<meta charset="UTF-8">
+		<title>add data from service</title>
+	</head>
+	
+	<body>
+		<table>
+			<tr>
+				<th>name</th>
+				<th>value</th>
+			</tr>
+			{{ range $s, $v := . }}
+			<tr>
+				<td>{{ $v.Name }}</td>
+				<td>{{ $v.Value }}</td>
+			</tr>
+			{{end}}
+		</table>
+	</body>
+	
+	</html>`
+
 	res.Header().Add("Content-Type", "text/html")
 	res.Header().Add("Content-Type", "charset=utf-8")
 
-	htmlText := `<!DOCTYPE html>
-	<html>
-	<head>
-	<meta charset="UTF-8">
-	<title>add data from service</title>
-	</head>
-	<body>
-	<table>
-	<tr><th>name</th><th>value</th></tr>`
+	t := template.New("all tmpl")
+	t, err := t.Parse(tmpl)
 
-	tableTemplate := "<tr><td>%s</td><td>%v</td></tr>"
-
-	tableResult := ms.GetData()
-
-	tableHTML := ""
-
-	for _, val := range tableResult {
-		tableHTML += fmt.Sprintf(tableTemplate, val.Name, val.Value)
+	if err != nil {
+		http.Error(res, err.Error(), 500)
+		return
 	}
 
-	htmlText += tableHTML + "</table></body></html>"
+	tableResult := sh.ms.GetData()
+	err = t.Execute(res, tableResult)
 
-	fmt.Fprint(res, htmlText)
+	if err != nil {
+		http.Error(res, err.Error(), 500)
+		return
+	}
 }
 
-func ServiceRouter() chi.Router {
+func NewServiceHandlers(ms storage.Repositories) ServiceHandlers {
+	return ServiceHandlers{ms}
+}
+
+func ServiceRouter(sh ServiceHandlers) chi.Router {
 	r := chi.NewRouter()
 
 	r.Route("/", func(r chi.Router) {
-		r.Get("/", all)
+		r.Get("/", sh.all)
 		r.Route("/update", func(r chi.Router) {
-			r.Post("/{type}/{name}/{value}", updateCounter)
+			r.Post("/{type}/{name}/{value}", sh.updateCounter)
 		})
 		r.Route("/value", func(r chi.Router) {
-			r.Get("/{type}/{name}", value)
+			r.Get("/{type}/{name}", sh.value)
 		})
 	})
 
