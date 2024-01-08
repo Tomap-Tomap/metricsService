@@ -97,10 +97,10 @@ func Test_value(t *testing.T) {
 	defer srv.Close()
 
 	g, _ := storage.ParseGauge("1")
-	sh.ms.AddValue(g, "test")
+	sh.ms.SetGauge(g, "test")
 
 	c, _ := storage.ParseCounter("1")
-	sh.ms.AddValue(c, "test")
+	sh.ms.AddCounter(c, "test")
 
 	type want struct {
 		code        int
@@ -169,10 +169,10 @@ func Test_all(t *testing.T) {
 	defer srv.Close()
 
 	g, _ := storage.ParseGauge("1")
-	sh.ms.AddValue(g, "test")
+	sh.ms.SetGauge(g, "test")
 
 	c, _ := storage.ParseCounter("1")
-	sh.ms.AddValue(c, "test")
+	sh.ms.AddCounter(c, "test")
 
 	htmlText := `<!DOCTYPE html>
 	<html>

@@ -7,19 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testTyper uint8
-
-func (t testTyper) getType() int {
-	return -1
-}
-
-func Test_memStorage_AddValue(t *testing.T) {
+func TestMemStorage_SetGauge(t *testing.T) {
 	type fields struct {
-		gauges   map[string]gauge
-		counters map[string]counter
+		gauges   map[string]Gauge
+		counters map[string]Counter
 	}
 	type args struct {
-		value Typer
+		value Gauge
 		name  string
 	}
 	tests := []struct {
@@ -30,34 +24,16 @@ func Test_memStorage_AddValue(t *testing.T) {
 		wantFields fields
 	}{
 		{
-			name:    "negative",
-			fields:  fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:    args{testTyper(1), "negative"},
-			wantErr: true,
-		},
-		{
-			name:       "add counter",
-			fields:     fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:       args{counter(1), "tc"},
-			wantFields: fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1, "tc": 1}},
-		},
-		{
-			name:       "add counter increment",
-			fields:     fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:       args{counter(1), "test"},
-			wantFields: fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 2}},
-		},
-		{
 			name:       "add gauge",
-			fields:     fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:       args{gauge(1.11), "tg"},
-			wantFields: fields{map[string]gauge{"test": 0.12, "tg": 1.11}, map[string]counter{"test": 1}},
+			fields:     fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
+			args:       args{Gauge(1.11), "tg"},
+			wantFields: fields{map[string]Gauge{"test": 0.12, "tg": 1.11}, map[string]Counter{"test": 1}},
 		},
 		{
 			name:       "add gauge exchange",
-			fields:     fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:       args{gauge(1.11), "test"},
-			wantFields: fields{map[string]gauge{"test": 1.11}, map[string]counter{"test": 1}},
+			fields:     fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
+			args:       args{Gauge(1.11), "test"},
+			wantFields: fields{map[string]Gauge{"test": 1.11}, map[string]Counter{"test": 1}},
 		},
 	}
 	for _, tt := range tests {
@@ -67,64 +43,39 @@ func Test_memStorage_AddValue(t *testing.T) {
 				counters: tt.fields.counters,
 			}
 
-			err := m.AddValue(tt.args.value, tt.args.name)
-
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
+			m.SetGauge(tt.args.value, tt.args.name)
 			assert.Equal(t, tt.wantFields, fields{m.gauges, m.counters})
 		})
 	}
 }
 
-func Test_memStorage_GetValue(t *testing.T) {
+func TestMemStorage_AddCounter(t *testing.T) {
 	type fields struct {
-		gauges   map[string]gauge
-		counters map[string]counter
+		gauges   map[string]Gauge
+		counters map[string]Counter
 	}
 	type args struct {
-		valueType int
-		name      string
+		value Counter
+		name  string
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    Typer
-		wantErr bool
+		name       string
+		fields     fields
+		args       args
+		wantErr    bool
+		wantFields fields
 	}{
 		{
-			name:    "gauge not found",
-			fields:  fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:    args{GaugeType, "wrongName"},
-			wantErr: true,
+			name:       "add counter",
+			fields:     fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
+			args:       args{Counter(1), "tc"},
+			wantFields: fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1, "tc": 1}},
 		},
 		{
-			name:    "counter not found",
-			fields:  fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:    args{CounterType, "wrongName"},
-			wantErr: true,
-		},
-		{
-			name:    "wrong type",
-			fields:  fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:    args{-1, "wrongName"},
-			wantErr: true,
-		},
-		{
-			name:   "get gauge",
-			fields: fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:   args{GaugeType, "test"},
-			want:   gauge(0.12),
-		},
-		{
-			name:   "get counter",
-			fields: fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			args:   args{CounterType, "test"},
-			want:   counter(1),
+			name:       "add counter increment",
+			fields:     fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
+			args:       args{Counter(1), "test"},
+			wantFields: fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 2}},
 		},
 	}
 	for _, tt := range tests {
@@ -133,7 +84,45 @@ func Test_memStorage_GetValue(t *testing.T) {
 				gauges:   tt.fields.gauges,
 				counters: tt.fields.counters,
 			}
-			got, err := m.GetValue(tt.args.valueType, tt.args.name)
+
+			m.AddCounter(tt.args.value, tt.args.name)
+			assert.Equal(t, tt.wantFields, fields{m.gauges, m.counters})
+		})
+	}
+}
+
+func TestMemStorage_GetGauge(t *testing.T) {
+	type fields struct {
+		gauges   map[string]Gauge
+		counters map[string]Counter
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    string
+		want    Gauge
+		wantErr bool
+	}{
+		{
+			name:    "gauge not found",
+			fields:  fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
+			args:    "wrongName",
+			wantErr: true,
+		},
+		{
+			name:   "get gauge",
+			fields: fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
+			args:   "test",
+			want:   Gauge(0.12),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &MemStorage{
+				gauges:   tt.fields.gauges,
+				counters: tt.fields.counters,
+			}
+			got, err := m.GetGauge(tt.args)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -146,30 +135,29 @@ func Test_memStorage_GetValue(t *testing.T) {
 	}
 }
 
-func Test_memStorage_GetData(t *testing.T) {
+func TestMemStorage_GetCounter(t *testing.T) {
 	type fields struct {
-		gauges   map[string]gauge
-		counters map[string]counter
+		gauges   map[string]Gauge
+		counters map[string]Counter
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		want   []dataResult
+		name    string
+		fields  fields
+		args    string
+		want    Counter
+		wantErr bool
 	}{
 		{
-			name:   "test full",
-			fields: fields{map[string]gauge{"test": 0.12}, map[string]counter{"test": 1}},
-			want:   []dataResult{{"test", counter(1)}, {"test", gauge(0.12)}},
+			name:    "counter not found",
+			fields:  fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
+			args:    "wrongName",
+			wantErr: true,
 		},
 		{
-			name:   "test only gauge",
-			fields: fields{map[string]gauge{"test": 0.12}, nil},
-			want:   []dataResult{{"test", gauge(0.12)}},
-		},
-		{
-			name:   "test only counters",
-			fields: fields{nil, map[string]counter{"test": 1}},
-			want:   []dataResult{{"test", counter(1)}},
+			name:   "get counter",
+			fields: fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
+			args:   "test",
+			want:   Counter(1),
 		},
 	}
 	for _, tt := range tests {
@@ -178,48 +166,8 @@ func Test_memStorage_GetData(t *testing.T) {
 				gauges:   tt.fields.gauges,
 				counters: tt.fields.counters,
 			}
-			got := m.GetData()
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
+			got, err := m.GetCounter(tt.args)
 
-func TestParseType(t *testing.T) {
-	tests := []struct {
-		name    string
-		arg     string
-		want    int
-		wantErr bool
-	}{
-		{
-			name:    "wrong type",
-			arg:     "wrongType",
-			wantErr: true,
-		},
-		{
-			name: "gauge type",
-			arg:  "gauge",
-			want: GaugeType,
-		},
-		{
-			name: "counter type",
-			arg:  "counter",
-			want: CounterType,
-		},
-		{
-			name: "gauge type upper",
-			arg:  "Gauge",
-			want: GaugeType,
-		},
-		{
-			name: "counter type upper",
-			arg:  "Counter",
-			want: CounterType,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseType(tt.arg)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -235,7 +183,7 @@ func TestParseGauge(t *testing.T) {
 	tests := []struct {
 		name    string
 		arg     string
-		want    gauge
+		want    Gauge
 		wantErr bool
 	}{
 		{
@@ -287,7 +235,7 @@ func TestParseCounter(t *testing.T) {
 	tests := []struct {
 		name    string
 		arg     string
-		want    counter
+		want    Counter
 		wantErr bool
 	}{
 		{

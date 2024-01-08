@@ -3,123 +3,77 @@ package storage
 import (
 	"errors"
 	"strconv"
-	"strings"
 )
 
-const (
-	GaugeType = iota
-	CounterType
-)
-
-type Typer interface {
-	getType() int
-}
-
-type gauge float64
-
-func (g gauge) getType() int {
-	return GaugeType
-}
-
-type counter int64
-
-func (c counter) getType() int {
-	return CounterType
-}
-
-type dataResult struct {
-	Name  string
-	Value Typer
-}
+type Gauge float64
+type Counter int64
 
 type Repositories interface {
-	AddValue(value Typer, name string) error
-	GetValue(valueType int, name string) (Typer, error)
-	GetData() []dataResult
+	SetGauge(value Gauge, name string)
+	GetGauge(name string) (Gauge, error)
+	AddCounter(value Counter, name string)
+	GetCounter(name string) (Counter, error)
+	GetAllGauge() map[string]Gauge
+	GetAllCounter() map[string]Counter
 }
 
 type MemStorage struct {
-	gauges   map[string]gauge
-	counters map[string]counter
+	gauges   map[string]Gauge
+	counters map[string]Counter
 }
 
 func NewMemStorage() *MemStorage {
 	ms := MemStorage{}
-	ms.counters = make(map[string]counter)
-	ms.gauges = make(map[string]gauge)
+	ms.counters = make(map[string]Counter)
+	ms.gauges = make(map[string]Gauge)
 
 	return &ms
 }
 
-func (m *MemStorage) AddValue(value Typer, name string) error {
-	switch v := value.(type) {
-	case gauge:
-		m.gauges[name] = v
-	case counter:
-		m.counters[name] += v
-	default:
-		return errors.New("metrics type is unknown")
-	}
-
-	return nil
+func (m *MemStorage) SetGauge(value Gauge, name string) {
+	m.gauges[name] = value
 }
 
-func (m *MemStorage) GetValue(valueType int, name string) (Typer, error) {
-	switch valueType {
-	case GaugeType:
-		v, ok := m.gauges[name]
+func (m *MemStorage) GetGauge(name string) (Gauge, error) {
+	v, ok := m.gauges[name]
 
-		if !ok {
-			return v, errors.New("value not found")
-		}
-
-		return v, nil
-	case CounterType:
-		v, ok := m.counters[name]
-
-		if !ok {
-			return v, errors.New("value not found")
-		}
-
-		return v, nil
-	default:
-		return counter(0), errors.New("unknown type")
+	if !ok {
+		return v, errors.New("value not found")
 	}
+
+	return v, nil
 }
 
-func (m *MemStorage) GetData() []dataResult {
-	res := make([]dataResult, 0)
-
-	for k, v := range m.counters {
-		res = append(res, dataResult{k, v})
-	}
-
-	for k, v := range m.gauges {
-		res = append(res, dataResult{k, v})
-	}
-
-	return res
+func (m *MemStorage) AddCounter(value Counter, name string) {
+	m.counters[name] += value
 }
 
-func ParseType(t string) (int, error) {
-	switch strings.ToLower(t) {
-	case "gauge":
-		return GaugeType, nil
-	case "counter":
-		return CounterType, nil
-	default:
-		return -1, errors.New("unknown type")
+func (m *MemStorage) GetCounter(name string) (Counter, error) {
+	v, ok := m.counters[name]
+
+	if !ok {
+		return v, errors.New("value not found")
 	}
+
+	return v, nil
 }
 
-func ParseGauge(g string) (gauge, error) {
+func (m *MemStorage) GetAllGauge() map[string]Gauge {
+	return m.gauges
+}
+
+func (m *MemStorage) GetAllCounter() map[string]Counter {
+	return m.counters
+}
+
+func ParseGauge(g string) (Gauge, error) {
 	v, err := strconv.ParseFloat(g, 64)
 
-	return gauge(v), err
+	return Gauge(v), err
 }
 
-func ParseCounter(c string) (counter, error) {
+func ParseCounter(c string) (Counter, error) {
 	v, err := strconv.ParseInt(c, 10, 64)
 
-	return counter(v), err
+	return Counter(v), err
 }

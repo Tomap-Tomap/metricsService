@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 
 	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-chi/chi/v5"
@@ -17,31 +18,29 @@ func (sh *ServiceHandlers) updateCounter(res http.ResponseWriter, req *http.Requ
 	res.Header().Add("Content-Type", "text/plain")
 	res.Header().Add("Content-Type", "charset=utf-8")
 
-	t, err := storage.ParseType(chi.URLParam(req, "type"))
+	t := strings.ToLower(chi.URLParam(req, "type"))
 
-	if err != nil {
-		http.Error(res, err.Error(), http.StatusBadRequest)
-		return
-	}
+	switch t {
+	case "counter":
+		v, err := storage.ParseCounter(chi.URLParam(req, "value"))
 
-	var v storage.Typer
+		if err != nil {
+			http.Error(res, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-	if t == storage.CounterType {
-		v, err = storage.ParseCounter(chi.URLParam(req, "value"))
-	} else if t == storage.GaugeType {
-		v, err = storage.ParseGauge(chi.URLParam(req, "value"))
-	}
+		sh.ms.AddCounter(v, chi.URLParam(req, "name"))
+	case "gauge":
+		v, err := storage.ParseGauge(chi.URLParam(req, "value"))
 
-	if err != nil {
-		http.Error(res, err.Error(), http.StatusBadRequest)
-		return
-	}
+		if err != nil {
+			http.Error(res, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-	err = sh.ms.AddValue(v, chi.URLParam(req, "name"))
-
-	if err != nil {
-		http.Error(res, err.Error(), http.StatusBadRequest)
-		return
+		sh.ms.SetGauge(v, chi.URLParam(req, "name"))
+	default:
+		http.Error(res, "unknown type", http.StatusBadRequest)
 	}
 }
 
@@ -49,21 +48,29 @@ func (sh *ServiceHandlers) value(res http.ResponseWriter, req *http.Request) {
 	res.Header().Add("Content-Type", "text/plain")
 	res.Header().Add("Content-Type", "charset=utf-8")
 
-	t, err := storage.ParseType(chi.URLParam(req, "type"))
+	t := strings.ToLower(chi.URLParam(req, "type"))
 
-	if err != nil {
-		http.Error(res, err.Error(), http.StatusNotFound)
-		return
+	switch t {
+	case "counter":
+		v, err := sh.ms.GetCounter(chi.URLParam(req, "name"))
+
+		if err != nil {
+			http.Error(res, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		fmt.Fprint(res, v)
+	case "gauge":
+		v, err := sh.ms.GetGauge(chi.URLParam(req, "name"))
+
+		if err != nil {
+			http.Error(res, err.Error(), http.StatusNotFound)
+			return
+		}
+		fmt.Fprint(res, v)
+	default:
+		http.Error(res, "unknown type", http.StatusNotFound)
 	}
-
-	v, err := sh.ms.GetValue(t, chi.URLParam(req, "name"))
-
-	if err != nil {
-		http.Error(res, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	fmt.Fprint(res, v)
 }
 
 func (sh *ServiceHandlers) all(res http.ResponseWriter, req *http.Request) {
@@ -81,10 +88,16 @@ func (sh *ServiceHandlers) all(res http.ResponseWriter, req *http.Request) {
 				<th>name</th>
 				<th>value</th>
 			</tr>
-			{{ range $s, $v := . }}
+			{{ range $s, $v := .Counters }}
 			<tr>
-				<td>{{ $v.Name }}</td>
-				<td>{{ $v.Value }}</td>
+				<td>{{ $s }}</td>
+				<td>{{ $v }}</td>
+			</tr>
+			{{end}}
+			{{ range $s, $v := .Gauges }}
+			<tr>
+				<td>{{ $s }}</td>
+				<td>{{ $v }}</td>
 			</tr>
 			{{end}}
 		</table>
@@ -103,8 +116,13 @@ func (sh *ServiceHandlers) all(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	tableResult := sh.ms.GetData()
-	err = t.Execute(res, tableResult)
+	type resultTable struct {
+		Counters map[string]storage.Counter
+		Gauges   map[string]storage.Gauge
+	}
+
+	result := resultTable{sh.ms.GetAllCounter(), sh.ms.GetAllGauge()}
+	err = t.Execute(res, result)
 
 	if err != nil {
 		http.Error(res, err.Error(), 500)
