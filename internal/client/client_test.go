@@ -42,9 +42,9 @@ func TestSendGauge(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
 			defer ts.Close()
 
-			ServiceAddr = strings.TrimPrefix(ts.URL, "http://")
+			serviceAddr = strings.TrimPrefix(ts.URL, "http://")
 
-			err := SendGauge(tt.args.name, tt.args.value)
+			err := sendGauge(tt.args.name, tt.args.value)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -88,9 +88,9 @@ func TestSendCounter(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
 			defer ts.Close()
 
-			ServiceAddr = strings.TrimPrefix(ts.URL, "http://")
+			serviceAddr = strings.TrimPrefix(ts.URL, "http://")
 
-			err := SendCounter(tt.args.name, tt.args.value)
+			err := sendCounter(tt.args.name, tt.args.value)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -139,9 +139,9 @@ func TestPushStats(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
 			defer ts.Close()
 
-			ServiceAddr = strings.TrimPrefix(ts.URL, "http://")
+			serviceAddr = strings.TrimPrefix(ts.URL, "http://")
 
-			err := PushStats(tt.args.ms)
+			err := pushStats(tt.args.ms)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
