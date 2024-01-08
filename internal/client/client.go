@@ -5,10 +5,11 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"runtime"
 	"strconv"
 	"time"
 
-	memstats "github.com/DarkOmap/metricsService/internal/memStats"
+	memstats "github.com/DarkOmap/metricsService/internal/memstats"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -16,6 +17,7 @@ var serviceAddr string
 
 func Run(listenAddr string, reportInterval, pollInterval uint) <-chan struct{} {
 	done := make(chan struct{})
+	var ms runtime.MemStats
 
 	serviceAddr = listenAddr + "/update"
 
@@ -24,8 +26,8 @@ func Run(listenAddr string, reportInterval, pollInterval uint) <-chan struct{} {
 	go func() {
 		for {
 			time.Sleep(time.Duration(reportInterval) * time.Second)
-			ms := memstats.GetMemStatsForServer()
-			err := pushStats(ms)
+			msForServer := memstats.GetMemStatsForServer(&ms)
+			err := pushStats(msForServer)
 
 			if err != nil {
 				log.Print(err.Error())
@@ -49,6 +51,7 @@ func Run(listenAddr string, reportInterval, pollInterval uint) <-chan struct{} {
 	go func() {
 		for {
 			time.Sleep(time.Duration(pollInterval) * time.Second)
+			runtime.ReadMemStats(&ms)
 			pollCount++
 		}
 	}()

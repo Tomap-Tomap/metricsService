@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	memstats "github.com/DarkOmap/metricsService/internal/memStats"
+	memstats "github.com/DarkOmap/metricsService/internal/memstats"
 	"github.com/stretchr/testify/assert"
 )
 
