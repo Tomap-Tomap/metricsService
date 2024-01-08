@@ -1,7 +1,7 @@
 package client
 
 import (
-	"errors"
+	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
@@ -69,7 +69,7 @@ func sendGauge(name, value string) error {
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return errors.New("status not OK")
+		return fmt.Errorf("status not 200, current status %d", resp.StatusCode())
 	}
 
 	return nil
@@ -89,7 +89,7 @@ func sendCounter(name, value string) error {
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return errors.New("status not OK")
+		return fmt.Errorf("status not 200, current status %d", resp.StatusCode())
 	}
 
 	return nil
