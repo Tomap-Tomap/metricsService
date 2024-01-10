@@ -2,40 +2,43 @@ package storage
 
 import (
 	"errors"
+	"maps"
 	"strconv"
+	"sync"
 )
 
 type Gauge float64
 type Counter int64
 
-type Repositories interface {
-	SetGauge(value Gauge, name string)
-	GetGauge(name string) (Gauge, error)
-	AddCounter(value Counter, name string)
-	GetCounter(name string) (Counter, error)
-	GetAllGauge() map[string]Gauge
-	GetAllCounter() map[string]Counter
-}
-
 type MemStorage struct {
-	gauges   map[string]Gauge
-	counters map[string]Counter
+	gauges struct {
+		sync.RWMutex
+		data map[string]Gauge
+	}
+	counters struct {
+		sync.RWMutex
+		data map[string]Counter
+	}
 }
 
 func NewMemStorage() *MemStorage {
 	ms := MemStorage{}
-	ms.counters = make(map[string]Counter)
-	ms.gauges = make(map[string]Gauge)
+	ms.counters.data = make(map[string]Counter)
+	ms.gauges.data = make(map[string]Gauge)
 
 	return &ms
 }
 
-func (m *MemStorage) SetGauge(value Gauge, name string) {
-	m.gauges[name] = value
+func (ms *MemStorage) SetGauge(value Gauge, name string) {
+	ms.gauges.Lock()
+	ms.gauges.data[name] = value
+	ms.gauges.Unlock()
 }
 
-func (m *MemStorage) GetGauge(name string) (Gauge, error) {
-	v, ok := m.gauges[name]
+func (ms *MemStorage) GetGauge(name string) (Gauge, error) {
+	ms.gauges.RLock()
+	v, ok := ms.gauges.data[name]
+	ms.gauges.RUnlock()
 
 	if !ok {
 		return v, errors.New("value not found")
@@ -44,12 +47,16 @@ func (m *MemStorage) GetGauge(name string) (Gauge, error) {
 	return v, nil
 }
 
-func (m *MemStorage) AddCounter(value Counter, name string) {
-	m.counters[name] += value
+func (ms *MemStorage) AddCounter(value Counter, name string) {
+	ms.counters.Lock()
+	ms.counters.data[name] += value
+	ms.counters.Unlock()
 }
 
-func (m *MemStorage) GetCounter(name string) (Counter, error) {
-	v, ok := m.counters[name]
+func (ms *MemStorage) GetCounter(name string) (Counter, error) {
+	ms.counters.RLock()
+	v, ok := ms.counters.data[name]
+	ms.counters.RUnlock()
 
 	if !ok {
 		return v, errors.New("value not found")
@@ -58,12 +65,18 @@ func (m *MemStorage) GetCounter(name string) (Counter, error) {
 	return v, nil
 }
 
-func (m *MemStorage) GetAllGauge() map[string]Gauge {
-	return m.gauges
+func (ms *MemStorage) GetAllGauge() (retMap map[string]Gauge) {
+	ms.gauges.RLock()
+	retMap = maps.Clone(ms.gauges.data)
+	ms.gauges.RUnlock()
+	return
 }
 
-func (m *MemStorage) GetAllCounter() map[string]Counter {
-	return m.counters
+func (ms *MemStorage) GetAllCounter() (retMap map[string]Counter) {
+	ms.counters.RLock()
+	retMap = maps.Clone(ms.counters.data)
+	ms.counters.RUnlock()
+	return
 }
 
 func ParseGauge(g string) (Gauge, error) {

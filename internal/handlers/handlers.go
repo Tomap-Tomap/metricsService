@@ -10,8 +10,17 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type repositories interface {
+	SetGauge(value storage.Gauge, name string)
+	GetGauge(name string) (storage.Gauge, error)
+	AddCounter(value storage.Counter, name string)
+	GetCounter(name string) (storage.Counter, error)
+	GetAllGauge() map[string]storage.Gauge
+	GetAllCounter() map[string]storage.Counter
+}
+
 type ServiceHandlers struct {
-	ms storage.Repositories
+	ms repositories
 }
 
 func (sh *ServiceHandlers) updateCounter(res http.ResponseWriter, req *http.Request) {
@@ -130,7 +139,7 @@ func (sh *ServiceHandlers) all(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func NewServiceHandlers(ms storage.Repositories) ServiceHandlers {
+func NewServiceHandlers(ms repositories) ServiceHandlers {
 	return ServiceHandlers{ms}
 }
 

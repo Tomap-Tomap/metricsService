@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,12 +40,18 @@ func TestMemStorage_SetGauge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &MemStorage{
-				gauges:   tt.fields.gauges,
-				counters: tt.fields.counters,
+				gauges: struct {
+					sync.RWMutex
+					data map[string]Gauge
+				}{data: tt.fields.gauges},
+				counters: struct {
+					sync.RWMutex
+					data map[string]Counter
+				}{data: tt.fields.counters},
 			}
 
 			m.SetGauge(tt.args.value, tt.args.name)
-			assert.Equal(t, tt.wantFields, fields{m.gauges, m.counters})
+			assert.Equal(t, tt.wantFields, fields{m.gauges.data, m.counters.data})
 		})
 	}
 }
@@ -81,12 +88,18 @@ func TestMemStorage_AddCounter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &MemStorage{
-				gauges:   tt.fields.gauges,
-				counters: tt.fields.counters,
+				gauges: struct {
+					sync.RWMutex
+					data map[string]Gauge
+				}{data: tt.fields.gauges},
+				counters: struct {
+					sync.RWMutex
+					data map[string]Counter
+				}{data: tt.fields.counters},
 			}
 
 			m.AddCounter(tt.args.value, tt.args.name)
-			assert.Equal(t, tt.wantFields, fields{m.gauges, m.counters})
+			assert.Equal(t, tt.wantFields, fields{m.gauges.data, m.counters.data})
 		})
 	}
 }
@@ -119,8 +132,14 @@ func TestMemStorage_GetGauge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &MemStorage{
-				gauges:   tt.fields.gauges,
-				counters: tt.fields.counters,
+				gauges: struct {
+					sync.RWMutex
+					data map[string]Gauge
+				}{data: tt.fields.gauges},
+				counters: struct {
+					sync.RWMutex
+					data map[string]Counter
+				}{data: tt.fields.counters},
 			}
 			got, err := m.GetGauge(tt.args)
 
@@ -163,8 +182,14 @@ func TestMemStorage_GetCounter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &MemStorage{
-				gauges:   tt.fields.gauges,
-				counters: tt.fields.counters,
+				gauges: struct {
+					sync.RWMutex
+					data map[string]Gauge
+				}{data: tt.fields.gauges},
+				counters: struct {
+					sync.RWMutex
+					data map[string]Counter
+				}{data: tt.fields.counters},
 			}
 			got, err := m.GetCounter(tt.args)
 

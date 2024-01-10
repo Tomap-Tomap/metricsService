@@ -1,74 +1,25 @@
 package client
 
 import (
+	"context"
 	"fmt"
-	"log"
-	"math/rand"
 	"net/http"
-	"runtime"
-	"strconv"
-	"time"
 
 	memstats "github.com/DarkOmap/metricsService/internal/memstats"
 	"github.com/go-resty/resty/v2"
 )
 
-var serviceAddr string
-
-func Run(listenAddr string, reportInterval, pollInterval uint) <-chan struct{} {
-	done := make(chan struct{})
-	var ms runtime.MemStats
-
-	serviceAddr = listenAddr + "/update"
-
-	pollCount := 0
-
-	go func() {
-		for {
-			time.Sleep(time.Duration(reportInterval) * time.Second)
-			msForServer := memstats.GetMemStatsForServer(&ms)
-			err := pushStats(msForServer)
-
-			if err != nil {
-				log.Print(err.Error())
-			}
-
-			pollCountString := strconv.Itoa(pollCount)
-			err = sendCounter("PollCount", pollCountString)
-
-			if err != nil {
-				log.Print(err.Error())
-			}
-
-			err = sendGauge("RandomValue", strconv.FormatFloat(rand.Float64(), 'f', -1, 64))
-
-			if err != nil {
-				log.Print(err.Error())
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			time.Sleep(time.Duration(pollInterval) * time.Second)
-			runtime.ReadMemStats(&ms)
-			pollCount++
-		}
-	}()
-
-	return done
-}
-
-func sendGauge(name, value string) error {
+func SendGauge(ctx context.Context, addr, name, value string) error {
 	param := map[string]string{"name": name, "value": value}
 
 	client := resty.New()
 	resp, err := client.R().SetPathParams(param).
 		SetHeader("Content-Type", "text/plain").
-		Post("http://" + serviceAddr + "/gauge/{name}/{value}")
+		SetContext(ctx).
+		Post("http://" + addr + "/update/gauge/{name}/{value}")
 
 	if err != nil {
-		return err
+		return fmt.Errorf("send error gauge name %s value %s: %w", name, value, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
@@ -78,17 +29,18 @@ func sendGauge(name, value string) error {
 	return nil
 }
 
-func sendCounter(name, value string) error {
+func SendCounter(ctx context.Context, addr, name, value string) error {
 	param := map[string]string{"name": name, "value": value}
 
 	client := resty.New()
 
 	resp, err := client.R().SetPathParams(param).
 		SetHeader("Content-Type", "text/plain").
-		Post("http://" + serviceAddr + "/counter/{name}/{value}")
+		SetContext(ctx).
+		Post("http://" + addr + "/update/counter/{name}/{value}")
 
 	if err != nil {
-		return err
+		return fmt.Errorf("send error counter name %s value %s: %w", name, value, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
@@ -98,12 +50,12 @@ func sendCounter(name, value string) error {
 	return nil
 }
 
-func pushStats(ms []memstats.StringMS) error {
-	for _, val := range ms {
-		err := sendGauge(val.Name, val.Value)
+func PushStats(ctx context.Context, addr string, ms []memstats.StringMS) error {
+	for idx, val := range ms {
+		err := SendGauge(ctx, addr, val.Name, val.Value)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("push error memstats index %d: %w", idx, err)
 		}
 	}
 

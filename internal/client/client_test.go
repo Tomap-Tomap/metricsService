@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -42,9 +43,7 @@ func TestSendGauge(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
 			defer ts.Close()
 
-			serviceAddr = strings.TrimPrefix(ts.URL, "http://")
-
-			err := sendGauge(tt.args.name, tt.args.value)
+			err := SendGauge(context.Background(), strings.TrimPrefix(ts.URL, "http://"), tt.args.name, tt.args.value)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -88,9 +87,7 @@ func TestSendCounter(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
 			defer ts.Close()
 
-			serviceAddr = strings.TrimPrefix(ts.URL, "http://")
-
-			err := sendCounter(tt.args.name, tt.args.value)
+			err := SendCounter(context.Background(), strings.TrimPrefix(ts.URL, "http://"), tt.args.name, tt.args.value)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -139,9 +136,7 @@ func TestPushStats(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
 			defer ts.Close()
 
-			serviceAddr = strings.TrimPrefix(ts.URL, "http://")
-
-			err := pushStats(tt.args.ms)
+			err := PushStats(context.Background(), strings.TrimPrefix(ts.URL, "http://"), tt.args.ms)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
