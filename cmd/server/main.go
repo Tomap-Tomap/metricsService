@@ -9,13 +9,13 @@ import (
 )
 
 func main() {
-	flagRunAddr := parameters.ParseFlagsServer()
+	p := parameters.ParseFlagsServer()
 
 	ms := storage.NewMemStorage()
 	sh := handlers.NewServiceHandlers(ms)
 	r := handlers.ServiceRouter(sh)
 
-	err := http.ListenAndServe(flagRunAddr, r)
+	err := http.ListenAndServe(p.FlagRunAddr, r)
 
 	if err != nil {
 		panic(err)

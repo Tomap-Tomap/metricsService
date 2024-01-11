@@ -43,11 +43,11 @@ func TestParseFlagsAgent(t *testing.T) {
 				tt.f()
 			}
 
-			gotListenAddr, gotReportInterval, gotPollInterval := ParseFlagsAgent()
+			p := ParseFlagsAgent()
 
-			assert.Equal(t, tt.wantListenAddr, gotListenAddr)
-			assert.Equal(t, tt.wantReportInterval, gotReportInterval)
-			assert.Equal(t, tt.wantPollInterval, gotPollInterval)
+			assert.Equal(t, tt.wantListenAddr, p.ListenAddr)
+			assert.Equal(t, tt.wantReportInterval, p.ReportInterval)
+			assert.Equal(t, tt.wantPollInterval, p.PollInterval)
 
 			delParameters()
 		})
@@ -97,9 +97,9 @@ func TestParseFlagsServer(t *testing.T) {
 				tt.f()
 			}
 
-			gotFlagRunAddr := ParseFlagsServer()
+			p := ParseFlagsServer()
 
-			assert.Equal(t, tt.wantFlagRunAddr, gotFlagRunAddr)
+			assert.Equal(t, tt.wantFlagRunAddr, p.FlagRunAddr)
 			delParameters()
 		})
 	}

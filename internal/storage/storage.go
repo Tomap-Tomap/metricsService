@@ -10,15 +10,19 @@ import (
 type Gauge float64
 type Counter int64
 
+type gauges struct {
+	sync.RWMutex
+	data map[string]Gauge
+}
+
+type counters struct {
+	sync.RWMutex
+	data map[string]Counter
+}
+
 type MemStorage struct {
-	gauges struct {
-		sync.RWMutex
-		data map[string]Gauge
-	}
-	counters struct {
-		sync.RWMutex
-		data map[string]Counter
-	}
+	gauges   gauges
+	counters counters
 }
 
 func NewMemStorage() *MemStorage {

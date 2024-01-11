@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -15,27 +16,28 @@ import (
 	"github.com/DarkOmap/metricsService/internal/memstats"
 )
 
-func Run(listenAddr string, reportInterval, pollInterval uint) {
-	var (
-		ms    runtime.MemStats
-		wg    sync.WaitGroup
-		mutex sync.Mutex
-	)
+type Agent struct {
+	reportInterval, pollInterval uint
+	client                       client.Client
+	pollCount                    atomic.Int64
+	ms                           runtime.MemStats
+}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+func (a *Agent) Run() {
+	var wg sync.WaitGroup
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
 	wg.Add(2)
-
-	pollCount := 0
 
 	go func() {
 		defer wg.Done()
 		loop := true
 		for loop {
 			select {
-			case <-time.After(time.Duration(reportInterval) * time.Second):
-				sendReport(&ms, ctx, listenAddr, pollCount, &mutex)
+			case <-time.After(time.Duration(a.reportInterval) * time.Second):
+				a.sendReport(ctx)
 			case <-ctx.Done():
 				loop = false
 			}
@@ -47,11 +49,9 @@ func Run(listenAddr string, reportInterval, pollInterval uint) {
 		loop := true
 		for loop {
 			select {
-			case <-time.After(time.Duration(pollInterval) * time.Second):
-				runtime.ReadMemStats(&ms)
-				mutex.Lock()
-				pollCount++
-				mutex.Unlock()
+			case <-time.After(time.Duration(a.pollInterval) * time.Second):
+				runtime.ReadMemStats(&a.ms)
+				a.pollCount.Add(1)
 			case <-ctx.Done():
 				loop = false
 			}
@@ -61,26 +61,30 @@ func Run(listenAddr string, reportInterval, pollInterval uint) {
 	wg.Wait()
 }
 
-func sendReport(ms *runtime.MemStats, ctx context.Context, listenAddr string, pollCount int, mutex *sync.Mutex) {
-	msForServer := memstats.GetMemStatsForServer(ms)
-	err := client.PushStats(ctx, listenAddr, msForServer)
+func (a *Agent) sendReport(ctx context.Context) {
+	msForServer := memstats.GetMemStatsForServer(&a.ms)
+	err := a.client.PushStats(ctx, msForServer)
 
 	if err != nil {
-		log.Print(err.Error())
+		log.Printf("Error on sending memory stats: %s", err)
 	}
 
-	mutex.Lock()
-	pollCountString := strconv.Itoa(pollCount)
-	err = client.SendCounter(ctx, listenAddr, "PollCount", pollCountString)
-	mutex.Unlock()
+	pollCountString := strconv.FormatInt(a.pollCount.Load(), 10)
+	err = a.client.SendCounter(ctx, "PollCount", pollCountString)
 
 	if err != nil {
-		log.Print(err.Error())
+		log.Printf("Error on sending poll count: %s", err)
 	}
 
-	err = client.SendGauge(ctx, listenAddr, "RandomValue", strconv.FormatFloat(rand.Float64(), 'f', -1, 64))
+	err = a.client.SendGauge(ctx, "RandomValue", strconv.FormatFloat(rand.Float64(), 'f', -1, 64))
 
 	if err != nil {
-		log.Print(err.Error())
+		log.Printf("Error on sending random value: %s", err)
 	}
+}
+
+func NewAgent(client client.Client, reportInterval, pollInterval uint) (a *Agent) {
+	a = &Agent{reportInterval: reportInterval, pollInterval: pollInterval, client: client}
+	runtime.ReadMemStats(&a.ms)
+	return
 }

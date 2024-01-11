@@ -9,7 +9,8 @@ type StringMS struct {
 	Name, Value string
 }
 
-func GetMemStatsForServer(ms *runtime.MemStats) (stringsMS []StringMS) {
+func GetMemStatsForServer(ms *runtime.MemStats) []StringMS {
+	stringsMS := make([]StringMS, 0, 27)
 	stringsMS = append(stringsMS, StringMS{"Alloc", strconv.FormatUint(ms.Alloc, 10)})
 	stringsMS = append(stringsMS, StringMS{"BuckHashSys", strconv.FormatUint(ms.BuckHashSys, 10)})
 	stringsMS = append(stringsMS, StringMS{"Frees", strconv.FormatUint(ms.Frees, 10)})
@@ -38,5 +39,5 @@ func GetMemStatsForServer(ms *runtime.MemStats) (stringsMS []StringMS) {
 	stringsMS = append(stringsMS, StringMS{"Sys", strconv.FormatUint(ms.Sys, 10)})
 	stringsMS = append(stringsMS, StringMS{"TotalAlloc", strconv.FormatUint(ms.TotalAlloc, 10)})
 
-	return
+	return stringsMS
 }

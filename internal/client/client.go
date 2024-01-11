@@ -9,17 +9,21 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-func SendGauge(ctx context.Context, addr, name, value string) error {
+type Client struct {
+	addr string
+}
+
+func (c Client) SendGauge(ctx context.Context, name, value string) error {
 	param := map[string]string{"name": name, "value": value}
 
 	client := resty.New()
 	resp, err := client.R().SetPathParams(param).
 		SetHeader("Content-Type", "text/plain").
 		SetContext(ctx).
-		Post("http://" + addr + "/update/gauge/{name}/{value}")
+		Post("http://" + c.addr + "/update/gauge/{name}/{value}")
 
 	if err != nil {
-		return fmt.Errorf("send error gauge name %s value %s: %w", name, value, err)
+		return fmt.Errorf("send gauge name %s value %s: %w", name, value, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
@@ -29,7 +33,7 @@ func SendGauge(ctx context.Context, addr, name, value string) error {
 	return nil
 }
 
-func SendCounter(ctx context.Context, addr, name, value string) error {
+func (c Client) SendCounter(ctx context.Context, name, value string) error {
 	param := map[string]string{"name": name, "value": value}
 
 	client := resty.New()
@@ -37,10 +41,10 @@ func SendCounter(ctx context.Context, addr, name, value string) error {
 	resp, err := client.R().SetPathParams(param).
 		SetHeader("Content-Type", "text/plain").
 		SetContext(ctx).
-		Post("http://" + addr + "/update/counter/{name}/{value}")
+		Post("http://" + c.addr + "/update/counter/{name}/{value}")
 
 	if err != nil {
-		return fmt.Errorf("send error counter name %s value %s: %w", name, value, err)
+		return fmt.Errorf("send counter name %s value %s: %w", name, value, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
@@ -50,14 +54,18 @@ func SendCounter(ctx context.Context, addr, name, value string) error {
 	return nil
 }
 
-func PushStats(ctx context.Context, addr string, ms []memstats.StringMS) error {
+func (c Client) PushStats(ctx context.Context, ms []memstats.StringMS) error {
 	for idx, val := range ms {
-		err := SendGauge(ctx, addr, val.Name, val.Value)
+		err := c.SendGauge(ctx, val.Name, val.Value)
 
 		if err != nil {
-			return fmt.Errorf("push error memstats index %d: %w", idx, err)
+			return fmt.Errorf("push memstats index %d: %w", idx, err)
 		}
 	}
 
 	return nil
+}
+
+func NewClient(addr string) Client {
+	return Client{addr}
 }
