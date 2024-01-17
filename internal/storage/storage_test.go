@@ -14,7 +14,7 @@ func TestMemStorage_SetGauge(t *testing.T) {
 		counters map[string]Counter
 	}
 	type args struct {
-		value Gauge
+		value string
 		name  string
 	}
 	tests := []struct {
@@ -27,13 +27,13 @@ func TestMemStorage_SetGauge(t *testing.T) {
 		{
 			name:       "add gauge",
 			fields:     fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
-			args:       args{Gauge(1.11), "tg"},
+			args:       args{"1.11", "tg"},
 			wantFields: fields{map[string]Gauge{"test": 0.12, "tg": 1.11}, map[string]Counter{"test": 1}},
 		},
 		{
 			name:       "add gauge exchange",
 			fields:     fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
-			args:       args{Gauge(1.11), "test"},
+			args:       args{"1.11", "test"},
 			wantFields: fields{map[string]Gauge{"test": 1.11}, map[string]Counter{"test": 1}},
 		},
 	}
@@ -62,7 +62,7 @@ func TestMemStorage_AddCounter(t *testing.T) {
 		counters map[string]Counter
 	}
 	type args struct {
-		value Counter
+		value string
 		name  string
 	}
 	tests := []struct {
@@ -75,13 +75,13 @@ func TestMemStorage_AddCounter(t *testing.T) {
 		{
 			name:       "add counter",
 			fields:     fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
-			args:       args{Counter(1), "tc"},
+			args:       args{"1", "tc"},
 			wantFields: fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1, "tc": 1}},
 		},
 		{
 			name:       "add counter increment",
 			fields:     fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 1}},
-			args:       args{Counter(1), "test"},
+			args:       args{"1", "test"},
 			wantFields: fields{map[string]Gauge{"test": 0.12}, map[string]Counter{"test": 2}},
 		},
 	}
@@ -244,7 +244,7 @@ func TestParseGauge(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseGauge(tt.arg)
+			got, err := parseGauge(tt.arg)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -296,7 +296,7 @@ func TestParseCounter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseCounter(tt.arg)
+			got, err := parseCounter(tt.arg)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

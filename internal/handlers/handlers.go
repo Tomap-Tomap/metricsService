@@ -11,9 +11,9 @@ import (
 )
 
 type repository interface {
-	SetGauge(value storage.Gauge, name string)
+	SetGauge(value string, name string) error
 	GetGauge(name string) (storage.Gauge, error)
-	AddCounter(value storage.Counter, name string)
+	AddCounter(value string, name string) error
 	GetCounter(name string) (storage.Counter, error)
 	GetAllGauge() map[string]storage.Gauge
 	GetAllCounter() map[string]storage.Counter
@@ -28,26 +28,22 @@ func (sh *ServiceHandlers) updateCounter(res http.ResponseWriter, req *http.Requ
 	res.Header().Add("Content-Type", "charset=utf-8")
 
 	t := strings.ToLower(chi.URLParam(req, "type"))
-
+	v, n := chi.URLParam(req, "value"), chi.URLParam(req, "name")
 	switch t {
 	case "counter":
-		v, err := storage.ParseCounter(chi.URLParam(req, "value"))
+		err := sh.ms.AddCounter(v, n)
 
 		if err != nil {
 			http.Error(res, err.Error(), http.StatusBadRequest)
 			return
 		}
-
-		sh.ms.AddCounter(v, chi.URLParam(req, "name"))
 	case "gauge":
-		v, err := storage.ParseGauge(chi.URLParam(req, "value"))
+		err := sh.ms.SetGauge(v, n)
 
 		if err != nil {
 			http.Error(res, err.Error(), http.StatusBadRequest)
 			return
 		}
-
-		sh.ms.SetGauge(v, chi.URLParam(req, "name"))
 	default:
 		http.Error(res, "unknown type", http.StatusBadRequest)
 	}

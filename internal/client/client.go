@@ -10,14 +10,14 @@ import (
 )
 
 type Client struct {
-	addr string
+	addr        string
+	restyClient *resty.Client
 }
 
 func (c Client) SendGauge(ctx context.Context, name, value string) error {
 	param := map[string]string{"name": name, "value": value}
 
-	client := resty.New()
-	resp, err := client.R().SetPathParams(param).
+	resp, err := c.restyClient.R().SetPathParams(param).
 		SetHeader("Content-Type", "text/plain").
 		SetContext(ctx).
 		Post("http://" + c.addr + "/update/gauge/{name}/{value}")
@@ -36,9 +36,7 @@ func (c Client) SendGauge(ctx context.Context, name, value string) error {
 func (c Client) SendCounter(ctx context.Context, name, value string) error {
 	param := map[string]string{"name": name, "value": value}
 
-	client := resty.New()
-
-	resp, err := client.R().SetPathParams(param).
+	resp, err := c.restyClient.R().SetPathParams(param).
 		SetHeader("Content-Type", "text/plain").
 		SetContext(ctx).
 		Post("http://" + c.addr + "/update/counter/{name}/{value}")
@@ -67,5 +65,5 @@ func (c Client) PushStats(ctx context.Context, ms []memstats.StringMS) error {
 }
 
 func NewClient(addr string) Client {
-	return Client{addr}
+	return Client{addr, resty.New()}
 }

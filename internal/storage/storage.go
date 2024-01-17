@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 	"strconv"
 	"sync"
@@ -33,10 +34,18 @@ func NewMemStorage() *MemStorage {
 	return &ms
 }
 
-func (ms *MemStorage) SetGauge(value Gauge, name string) {
+func (ms *MemStorage) SetGauge(value string, name string) error {
+	g, err := parseGauge(value)
+
+	if err != nil {
+		return fmt.Errorf("set gauge %s: %w", value, err)
+	}
+
 	ms.gauges.Lock()
-	ms.gauges.data[name] = value
+	ms.gauges.data[name] = g
 	ms.gauges.Unlock()
+
+	return nil
 }
 
 func (ms *MemStorage) GetGauge(name string) (Gauge, error) {
@@ -51,10 +60,18 @@ func (ms *MemStorage) GetGauge(name string) (Gauge, error) {
 	return v, nil
 }
 
-func (ms *MemStorage) AddCounter(value Counter, name string) {
+func (ms *MemStorage) AddCounter(value string, name string) error {
+	c, err := parseCounter(value)
+
+	if err != nil {
+		return fmt.Errorf("add counter %s: %w", value, err)
+	}
+
 	ms.counters.Lock()
-	ms.counters.data[name] += value
+	ms.counters.data[name] += c
 	ms.counters.Unlock()
+
+	return nil
 }
 
 func (ms *MemStorage) GetCounter(name string) (Counter, error) {
@@ -83,13 +100,13 @@ func (ms *MemStorage) GetAllCounter() (retMap map[string]Counter) {
 	return
 }
 
-func ParseGauge(g string) (Gauge, error) {
+func parseGauge(g string) (Gauge, error) {
 	v, err := strconv.ParseFloat(g, 64)
 
 	return Gauge(v), err
 }
 
-func ParseCounter(c string) (Counter, error) {
+func parseCounter(c string) (Counter, error) {
 	v, err := strconv.ParseInt(c, 10, 64)
 
 	return Counter(v), err
