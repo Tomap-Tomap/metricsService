@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-chi/chi/v5"
 )
@@ -141,6 +142,7 @@ func NewServiceHandlers(ms repository) ServiceHandlers {
 
 func ServiceRouter(sh ServiceHandlers) chi.Router {
 	r := chi.NewRouter()
+	r.Use(logger.RequestLogger)
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", sh.all)
