@@ -7,6 +7,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -23,6 +24,6 @@ func main() {
 	err := http.ListenAndServe(p.FlagRunAddr, r)
 
 	if err != nil {
-		panic(err)
+		logger.Log.Fatal("start server", zap.Error(err))
 	}
 }

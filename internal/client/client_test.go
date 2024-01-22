@@ -7,14 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	memstats "github.com/DarkOmap/metricsService/internal/memstats"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSendGauge(t *testing.T) {
 	type args struct {
 		name  string
-		value string
+		value float64
 	}
 	tests := []struct {
 		name    string
@@ -24,7 +23,7 @@ func TestSendGauge(t *testing.T) {
 	}{
 		{
 			name: "not OK test",
-			args: args{"test", "test"},
+			args: args{"test", 1.1},
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "test error", http.StatusBadRequest)
 			},
@@ -32,7 +31,7 @@ func TestSendGauge(t *testing.T) {
 		},
 		{
 			name: "OK test",
-			args: args{"test", "test"},
+			args: args{"test", 1.1},
 			handler: func(w http.ResponseWriter, r *http.Request) {
 			},
 			wantErr: false,
@@ -59,7 +58,7 @@ func TestSendGauge(t *testing.T) {
 func TestSendCounter(t *testing.T) {
 	type args struct {
 		name  string
-		value string
+		delta int64
 	}
 	tests := []struct {
 		name    string
@@ -69,7 +68,7 @@ func TestSendCounter(t *testing.T) {
 	}{
 		{
 			name: "not OK test",
-			args: args{"test", "test"},
+			args: args{"test", 1},
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "test error", http.StatusBadRequest)
 			},
@@ -77,7 +76,7 @@ func TestSendCounter(t *testing.T) {
 		},
 		{
 			name: "OK test",
-			args: args{"test", "test"},
+			args: args{"test", 1},
 			handler: func(w http.ResponseWriter, r *http.Request) {
 			},
 			wantErr: false,
@@ -89,57 +88,8 @@ func TestSendCounter(t *testing.T) {
 			defer ts.Close()
 
 			c := NewClient(strings.TrimPrefix(ts.URL, "http://"))
-			err := c.SendCounter(context.Background(), tt.args.name, tt.args.value)
+			err := c.SendCounter(context.Background(), tt.args.name, tt.args.delta)
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
-
-			assert.NoError(t, err)
-		})
-	}
-}
-
-func TestPushStats(t *testing.T) {
-	type args struct {
-		ms []memstats.StringMS
-	}
-	tests := []struct {
-		name    string
-		args    args
-		handler http.HandlerFunc
-		wantErr bool
-	}{
-		{
-			name: "not OK test",
-			args: args{[]memstats.StringMS{
-				{Name: "test", Value: "1111"},
-				{Name: "test2", Value: "2222"},
-			}},
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				http.Error(w, "test error", http.StatusBadRequest)
-			},
-			wantErr: true,
-		},
-		{
-			name: "OK test",
-			args: args{[]memstats.StringMS{
-				{Name: "test", Value: "1111"},
-				{Name: "test2", Value: "2222"},
-			}},
-			handler: func(w http.ResponseWriter, r *http.Request) {
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
-			defer ts.Close()
-
-			c := NewClient(strings.TrimPrefix(ts.URL, "http://"))
-			err := c.PushStats(context.Background(), tt.args.ms)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
