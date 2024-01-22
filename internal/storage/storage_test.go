@@ -283,8 +283,8 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 
 func TestMemStorage_ValueByMetrics(t *testing.T) {
 	var (
-		testGauge   float64 = 0.01
-		testCounter int64   = 1
+		testGauge         = 0.01
+		testCounter int64 = 1
 	)
 
 	type fields struct {

@@ -156,8 +156,8 @@ func TestNewMetrics(t *testing.T) {
 
 func TestNewModelByURL(t *testing.T) {
 	var (
-		testGauge   float64 = 1.1
-		testCounter int64   = 1
+		testGauge         = 1.1
+		testCounter int64 = 1
 	)
 	type args struct {
 		name      string
@@ -204,8 +204,8 @@ func TestNewModelByURL(t *testing.T) {
 
 func TestNewModelsByJSON(t *testing.T) {
 	var (
-		testGauge   float64 = 1.1
-		testCounter int64   = 1
+		testGauge         = 1.1
+		testCounter int64 = 1
 	)
 
 	type args struct {
@@ -310,8 +310,8 @@ func Test_checkType(t *testing.T) {
 
 func TestNewMetricsForGauge(t *testing.T) {
 	var (
-		testGauge1 float64 = 1.1
-		testGauge2 float64 = 0.1
+		testGauge1         = 1.1
+		testGauge2         = 0.1
 		testGauge3 float64 = 0
 	)
 	type args struct {
@@ -439,8 +439,8 @@ func Test_counterMetricsBySting(t *testing.T) {
 
 func Test_gaugeMetricsByStrings(t *testing.T) {
 	var (
-		testGauge1 float64 = 1.1
-		testGauge2 float64 = 0.1
+		testGauge1         = 1.1
+		testGauge2         = 0.1
 		testGauge3 float64 = 0
 	)
 	type args struct {
