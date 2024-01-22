@@ -33,6 +33,7 @@ func getWantStringsMS() map[string]float64 {
 		"BuckHashSys":   0,
 		"Frees":         0,
 		"GCCPUFraction": 0,
+		"GCSys":         0,
 		"HeapAlloc":     0,
 		"HeapIdle":      0,
 		"HeapInuse":     0,
