@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/DarkOmap/metricsService/internal/storage"
@@ -281,6 +282,7 @@ func NewServiceHandlers(ms repository) ServiceHandlers {
 func ServiceRouter(sh ServiceHandlers) chi.Router {
 	r := chi.NewRouter()
 	r.Use(logger.RequestLogger)
+	r.Use(compresses.CompressHandle)
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", sh.all)

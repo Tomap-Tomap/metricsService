@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/go-resty/resty/v2"
 )
@@ -17,8 +18,15 @@ type Client struct {
 func (c Client) SendGauge(ctx context.Context, name string, value float64) error {
 	m := models.NewMetricsForGauge(name, value)
 
-	resp, err := c.restyClient.R().SetBody(m).
+	b, err := compresses.GetCompressJSON(m)
+
+	if err != nil {
+		return fmt.Errorf("failed compress model name %s value %f: %w", name, value, err)
+	}
+
+	resp, err := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx).
 		Post("http://" + c.addr + "/update")
 
@@ -36,13 +44,20 @@ func (c Client) SendGauge(ctx context.Context, name string, value float64) error
 func (c Client) SendCounter(ctx context.Context, name string, delta int64) error {
 	m := models.NewMetricsForCounter(name, delta)
 
-	resp, err := c.restyClient.R().SetBody(m).
+	b, err := compresses.GetCompressJSON(m)
+
+	if err != nil {
+		return fmt.Errorf("failed compress model name %s delta %d: %w", name, delta, err)
+	}
+
+	resp, err := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx).
 		Post("http://" + c.addr + "/update")
 
 	if err != nil {
-		return fmt.Errorf("send counter name %s value %d: %w", name, delta, err)
+		return fmt.Errorf("send counter name %s delta %d: %w", name, delta, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
