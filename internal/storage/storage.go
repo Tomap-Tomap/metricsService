@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"strconv"
 	"sync"
+
+	"github.com/DarkOmap/metricsService/internal/models"
 )
 
 type Gauge float64
@@ -34,21 +35,78 @@ func NewMemStorage() *MemStorage {
 	return &ms
 }
 
-func (ms *MemStorage) SetGauge(value string, name string) error {
-	g, err := parseGauge(value)
-
-	if err != nil {
-		return fmt.Errorf("set gauge %s: %w", value, err)
+func (ms *MemStorage) UpdateByMetrics(m models.Metrics) (models.Metrics, error) {
+	switch m.MType {
+	case "counter":
+		return ms.updateCounterByMetrics(m.ID, (*Counter)(m.Delta))
+	case "gauge":
+		return ms.updateGaugeByMetrics(m.ID, (*Gauge)(m.Value))
+	default:
+		return models.Metrics{}, fmt.Errorf("unknown type %s", m.MType)
 	}
-
-	ms.gauges.Lock()
-	ms.gauges.data[name] = g
-	ms.gauges.Unlock()
-
-	return nil
 }
 
-func (ms *MemStorage) GetGauge(name string) (Gauge, error) {
+func (ms *MemStorage) updateCounterByMetrics(id string, delta *Counter) (models.Metrics, error) {
+	if delta == nil {
+		return models.Metrics{}, fmt.Errorf("delta is empty")
+	}
+
+	newDelta := int64(ms.addCounter(*delta, id))
+
+	return models.NewMetricsForCounter(id, newDelta), nil
+}
+
+func (ms *MemStorage) updateGaugeByMetrics(id string, value *Gauge) (models.Metrics, error) {
+	if value == nil {
+		return models.Metrics{}, fmt.Errorf("value is empty")
+	}
+
+	newValue := float64(ms.setGauge(*value, id))
+
+	return models.NewMetricsForGauge(id, newValue), nil
+}
+
+func (ms *MemStorage) ValueByMetrics(m models.Metrics) (models.Metrics, error) {
+	switch m.MType {
+	case "counter":
+		return ms.valueCounterByMetrics(m.ID)
+	case "gauge":
+		return ms.valueGaugeByMetrics(m.ID)
+	default:
+		return m, fmt.Errorf("unknown type %s", m.MType)
+	}
+}
+
+func (ms *MemStorage) valueCounterByMetrics(id string) (models.Metrics, error) {
+	c, err := ms.getCounter(id)
+
+	if err != nil {
+		return models.Metrics{}, fmt.Errorf("get counter %s: %w", id, err)
+	}
+
+	return models.NewMetricsForCounter(id, int64(c)), nil
+}
+
+func (ms *MemStorage) valueGaugeByMetrics(id string) (models.Metrics, error) {
+	g, err := ms.getGauge(id)
+
+	if err != nil {
+		return models.Metrics{}, fmt.Errorf("get gauge %s: %w", id, err)
+	}
+
+	return models.NewMetricsForGauge(id, float64(g)), nil
+}
+
+func (ms *MemStorage) setGauge(g Gauge, name string) Gauge {
+	ms.gauges.Lock()
+	ms.gauges.data[name] = g
+	retV := ms.gauges.data[name]
+	ms.gauges.Unlock()
+
+	return retV
+}
+
+func (ms *MemStorage) getGauge(name string) (Gauge, error) {
 	ms.gauges.RLock()
 	v, ok := ms.gauges.data[name]
 	ms.gauges.RUnlock()
@@ -60,21 +118,16 @@ func (ms *MemStorage) GetGauge(name string) (Gauge, error) {
 	return v, nil
 }
 
-func (ms *MemStorage) AddCounter(value string, name string) error {
-	c, err := parseCounter(value)
-
-	if err != nil {
-		return fmt.Errorf("add counter %s: %w", value, err)
-	}
-
+func (ms *MemStorage) addCounter(c Counter, name string) Counter {
 	ms.counters.Lock()
 	ms.counters.data[name] += c
+	retC := ms.counters.data[name]
 	ms.counters.Unlock()
 
-	return nil
+	return retC
 }
 
-func (ms *MemStorage) GetCounter(name string) (Counter, error) {
+func (ms *MemStorage) getCounter(name string) (Counter, error) {
 	ms.counters.RLock()
 	v, ok := ms.counters.data[name]
 	ms.counters.RUnlock()
@@ -98,16 +151,4 @@ func (ms *MemStorage) GetAllCounter() (retMap map[string]Counter) {
 	retMap = maps.Clone(ms.counters.data)
 	ms.counters.RUnlock()
 	return
-}
-
-func parseGauge(g string) (Gauge, error) {
-	v, err := strconv.ParseFloat(g, 64)
-
-	return Gauge(v), err
-}
-
-func parseCounter(c string) (Counter, error) {
-	v, err := strconv.ParseInt(c, 10, 64)
-
-	return Counter(v), err
 }

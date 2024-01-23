@@ -2,18 +2,18 @@ package agent
 
 import (
 	"context"
-	"log"
 	"math/rand"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/DarkOmap/metricsService/internal/client"
+	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/memstats"
+	"go.uber.org/zap"
 )
 
 type Agent struct {
@@ -63,23 +63,39 @@ func (a *Agent) Run() {
 
 func (a *Agent) sendReport(ctx context.Context) {
 	msForServer := memstats.GetMemStatsForServer(&a.ms)
-	err := a.client.PushStats(ctx, msForServer)
 
-	if err != nil {
-		log.Printf("Error on sending memory stats: %s", err)
+	for k, v := range msForServer {
+		err := a.client.SendGauge(ctx, k, v)
+
+		if err != nil {
+			logger.Log.Warn(
+				"push memstats",
+				zap.String("name", k),
+				zap.Float64("value", v),
+				zap.Error(err),
+			)
+		}
 	}
 
-	pollCountString := strconv.FormatInt(a.pollCount.Load(), 10)
-	err = a.client.SendCounter(ctx, "PollCount", pollCountString)
+	err := a.client.SendCounter(ctx, "PollCount", a.pollCount.Load())
 
 	if err != nil {
-		log.Printf("Error on sending poll count: %s", err)
+		logger.Log.Warn(
+			"Error on sending poll count",
+			zap.Int64("value", a.pollCount.Load()),
+			zap.Error(err),
+		)
 	}
 
-	err = a.client.SendGauge(ctx, "RandomValue", strconv.FormatFloat(rand.Float64(), 'f', -1, 64))
+	randV := rand.Float64()
+	err = a.client.SendGauge(ctx, "RandomValue", randV)
 
 	if err != nil {
-		log.Printf("Error on sending random value: %s", err)
+		logger.Log.Warn(
+			"Error on sending random value",
+			zap.Float64("value", randV),
+			zap.Error(err),
+		)
 	}
 }
 
