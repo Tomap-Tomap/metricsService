@@ -594,3 +594,98 @@ func TestMemStorage_valueGaugeByMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestNewMemStorage(t *testing.T) {
+	tests := []struct {
+		name string
+		want *MemStorage
+	}{
+		{
+			name: "test new ms",
+			want: &MemStorage{
+				gauges: struct {
+					sync.RWMutex
+					data map[string]Gauge
+				}{data: make(map[string]Gauge)},
+				counters: struct {
+					sync.RWMutex
+					data map[string]Counter
+				}{data: make(map[string]Counter)},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NewMemStorage()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestMemStorage_GetAllGauge(t *testing.T) {
+	type fields struct {
+		gauges   map[string]Gauge
+		counters map[string]Counter
+	}
+	tests := []struct {
+		name       string
+		fields     fields
+		wantRetMap map[string]Gauge
+	}{
+		{
+			name:       "get all gauges",
+			fields:     fields{gauges: map[string]Gauge{"test1": 1, "test2": 2, "test3": 3}},
+			wantRetMap: map[string]Gauge{"test1": 1, "test2": 2, "test3": 3},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ms := &MemStorage{
+				gauges: struct {
+					sync.RWMutex
+					data map[string]Gauge
+				}{data: tt.fields.gauges},
+				counters: struct {
+					sync.RWMutex
+					data map[string]Counter
+				}{data: tt.fields.counters},
+			}
+			gotRetMap := ms.GetAllGauge()
+			assert.Equal(t, tt.wantRetMap, gotRetMap)
+		})
+	}
+}
+
+func TestMemStorage_GetAllCounter(t *testing.T) {
+	type fields struct {
+		gauges   map[string]Gauge
+		counters map[string]Counter
+	}
+	tests := []struct {
+		name       string
+		fields     fields
+		wantRetMap map[string]Counter
+	}{
+		{
+			name:       "get all caounters",
+			fields:     fields{counters: map[string]Counter{"test1": 1, "test2": 2, "test3": 3}},
+			wantRetMap: map[string]Counter{"test1": 1, "test2": 2, "test3": 3},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ms := &MemStorage{
+				gauges: struct {
+					sync.RWMutex
+					data map[string]Gauge
+				}{data: tt.fields.gauges},
+				counters: struct {
+					sync.RWMutex
+					data map[string]Counter
+				}{data: tt.fields.counters},
+			}
+			gotRetMap := ms.GetAllCounter()
+			assert.Equal(t, tt.wantRetMap, gotRetMap)
+		})
+	}
+}

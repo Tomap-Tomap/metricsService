@@ -43,6 +43,15 @@ func TestServiceHandlers_updateByJSON(t *testing.T) {
 			want:  want{code: http.StatusMethodNotAllowed, contentType: ""},
 		},
 		{
+			name: "wrong type value",
+			param: param{method: http.MethodPost, body: `{
+				"id": "test",
+				"type": "type",
+				"value": 0
+			}`},
+			want: want{code: http.StatusBadRequest, contentType: textCT},
+		},
+		{
 			name: "wrong gauge value",
 			param: param{method: http.MethodPost, body: `{
 				"id": "test",

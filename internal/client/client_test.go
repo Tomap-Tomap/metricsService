@@ -53,6 +53,13 @@ func TestSendGauge(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+
+	t.Run("test brocken server", func(t *testing.T) {
+		c := NewClient("test")
+		err := c.SendGauge(context.Background(), "test", 1.1)
+
+		assert.Error(t, err)
+	})
 }
 
 func TestSendCounter(t *testing.T) {
@@ -98,4 +105,11 @@ func TestSendCounter(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+
+	t.Run("test brocken server", func(t *testing.T) {
+		c := NewClient("test")
+		err := c.SendCounter(context.Background(), "test", 1)
+
+		assert.Error(t, err)
+	})
 }
