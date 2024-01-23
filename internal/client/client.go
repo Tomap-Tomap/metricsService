@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	memstats "github.com/DarkOmap/metricsService/internal/memstats"
+	"github.com/DarkOmap/metricsService/internal/compresses"
+	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -14,16 +15,23 @@ type Client struct {
 	restyClient *resty.Client
 }
 
-func (c Client) SendGauge(ctx context.Context, name, value string) error {
-	param := map[string]string{"name": name, "value": value}
+func (c Client) SendGauge(ctx context.Context, name string, value float64) error {
+	m := models.NewMetricsForGauge(name, value)
 
-	resp, err := c.restyClient.R().SetPathParams(param).
-		SetHeader("Content-Type", "text/plain").
-		SetContext(ctx).
-		Post("http://" + c.addr + "/update/gauge/{name}/{value}")
+	b, err := compresses.GetCompressJSON(m)
 
 	if err != nil {
-		return fmt.Errorf("send gauge name %s value %s: %w", name, value, err)
+		return fmt.Errorf("failed compress model name %s value %f: %w", name, value, err)
+	}
+
+	resp, err := c.restyClient.R().SetBody(b).
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetContext(ctx).
+		Post("http://" + c.addr + "/update")
+
+	if err != nil {
+		return fmt.Errorf("send gauge name %s value %f: %w", name, value, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
@@ -33,32 +41,27 @@ func (c Client) SendGauge(ctx context.Context, name, value string) error {
 	return nil
 }
 
-func (c Client) SendCounter(ctx context.Context, name, value string) error {
-	param := map[string]string{"name": name, "value": value}
+func (c Client) SendCounter(ctx context.Context, name string, delta int64) error {
+	m := models.NewMetricsForCounter(name, delta)
 
-	resp, err := c.restyClient.R().SetPathParams(param).
-		SetHeader("Content-Type", "text/plain").
-		SetContext(ctx).
-		Post("http://" + c.addr + "/update/counter/{name}/{value}")
+	b, err := compresses.GetCompressJSON(m)
 
 	if err != nil {
-		return fmt.Errorf("send counter name %s value %s: %w", name, value, err)
+		return fmt.Errorf("failed compress model name %s delta %d: %w", name, delta, err)
+	}
+
+	resp, err := c.restyClient.R().SetBody(b).
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetContext(ctx).
+		Post("http://" + c.addr + "/update")
+
+	if err != nil {
+		return fmt.Errorf("send counter name %s delta %d: %w", name, delta, err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
 		return fmt.Errorf("status not 200, current status %d", resp.StatusCode())
-	}
-
-	return nil
-}
-
-func (c Client) PushStats(ctx context.Context, ms []memstats.StringMS) error {
-	for idx, val := range ms {
-		err := c.SendGauge(ctx, val.Name, val.Value)
-
-		if err != nil {
-			return fmt.Errorf("push memstats index %d: %w", idx, err)
-		}
 	}
 
 	return nil
