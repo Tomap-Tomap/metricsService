@@ -1,11 +1,17 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
+	"os/signal"
 	"sync"
+	"syscall"
+	"time"
 
+	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/models"
 )
 
@@ -14,25 +20,110 @@ type Counter int64
 
 type gauges struct {
 	sync.RWMutex
-	data map[string]Gauge
+	Data map[string]Gauge `json:"data"`
 }
 
 type counters struct {
 	sync.RWMutex
-	data map[string]Counter
+	Data map[string]Counter `json:"data"`
 }
 
 type MemStorage struct {
-	gauges   gauges
-	counters counters
+	Gauges    gauges   `json:"gauges"`
+	Counters  counters `json:"counters"`
+	fileName  string
+	storeChan chan struct{}
+	storeFunc func() <-chan struct{}
 }
 
-func NewMemStorage() *MemStorage {
+func NewMemStorage(storeInterval uint, fileName string) (*MemStorage, error) {
 	ms := MemStorage{}
-	ms.counters.data = make(map[string]Counter)
-	ms.gauges.data = make(map[string]Gauge)
+	ms.Counters.Data = make(map[string]Counter)
+	ms.Gauges.Data = make(map[string]Gauge)
+	ms.fileName = fileName
 
-	return &ms
+	ms.initStoreFunc(storeInterval)
+
+	err := ms.runSyncFromFile()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &ms, nil
+}
+
+func NewMemStorageFromGile(storeInterval uint, fileName string) (*MemStorage, error) {
+	consumer, err := file.NewConsumer(fileName)
+
+	if err != nil {
+		return nil, err
+	}
+	defer consumer.Close()
+
+	ms := &MemStorage{}
+	ms.Counters.Data = make(map[string]Counter)
+	ms.Gauges.Data = make(map[string]Gauge)
+
+	if err := consumer.Decoder.Decode(&ms); err != nil && err != io.EOF {
+		return nil, err
+	}
+
+	ms.fileName = fileName
+	ms.initStoreFunc(storeInterval)
+
+	err = ms.runSyncFromFile()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return ms, nil
+}
+
+func (ms *MemStorage) initStoreFunc(storeInterval uint) {
+	if storeInterval == 0 {
+		ms.storeChan = make(chan struct{})
+		ms.storeFunc = func() <-chan struct{} {
+			return ms.storeChan
+		}
+	} else {
+		ms.storeFunc = func() <-chan struct{} {
+			<-time.After(time.Duration(storeInterval) * time.Second)
+			return make(<-chan struct{})
+		}
+	}
+}
+
+func (ms *MemStorage) runSyncFromFile() error {
+	ch := make(chan error)
+	go func() {
+		producer, err := file.NewProducer(ms.fileName)
+
+		ch <- err
+
+		defer producer.Close()
+		loop := true
+		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer cancel()
+		for loop {
+			select {
+			case <-ms.storeFunc():
+				producer.Seek()
+				producer.Encoder.Encode(ms)
+			case <-ctx.Done():
+				producer.Seek()
+				producer.Encoder.Encode(ms)
+				loop = false
+			}
+		}
+	}()
+
+	if err := <-ch; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (ms *MemStorage) UpdateByMetrics(m models.Metrics) (models.Metrics, error) {
@@ -98,18 +189,22 @@ func (ms *MemStorage) valueGaugeByMetrics(id string) (models.Metrics, error) {
 }
 
 func (ms *MemStorage) setGauge(g Gauge, name string) Gauge {
-	ms.gauges.Lock()
-	ms.gauges.data[name] = g
-	retV := ms.gauges.data[name]
-	ms.gauges.Unlock()
+	ms.Gauges.Lock()
+	ms.Gauges.Data[name] = g
+	retV := ms.Gauges.Data[name]
+
+	if ms.storeChan != nil {
+		ms.storeChan <- struct{}{}
+	}
+	ms.Gauges.Unlock()
 
 	return retV
 }
 
 func (ms *MemStorage) getGauge(name string) (Gauge, error) {
-	ms.gauges.RLock()
-	v, ok := ms.gauges.data[name]
-	ms.gauges.RUnlock()
+	ms.Gauges.RLock()
+	v, ok := ms.Gauges.Data[name]
+	ms.Gauges.RUnlock()
 
 	if !ok {
 		return v, errors.New("value not found")
@@ -119,18 +214,23 @@ func (ms *MemStorage) getGauge(name string) (Gauge, error) {
 }
 
 func (ms *MemStorage) addCounter(c Counter, name string) Counter {
-	ms.counters.Lock()
-	ms.counters.data[name] += c
-	retC := ms.counters.data[name]
-	ms.counters.Unlock()
+	ms.Counters.Lock()
+	ms.Counters.Data[name] += c
+	retC := ms.Counters.Data[name]
+
+	if ms.storeChan != nil {
+		ms.storeChan <- struct{}{}
+	}
+
+	ms.Counters.Unlock()
 
 	return retC
 }
 
 func (ms *MemStorage) getCounter(name string) (Counter, error) {
-	ms.counters.RLock()
-	v, ok := ms.counters.data[name]
-	ms.counters.RUnlock()
+	ms.Counters.RLock()
+	v, ok := ms.Counters.Data[name]
+	ms.Counters.RUnlock()
 
 	if !ok {
 		return v, errors.New("value not found")
@@ -140,15 +240,15 @@ func (ms *MemStorage) getCounter(name string) (Counter, error) {
 }
 
 func (ms *MemStorage) GetAllGauge() (retMap map[string]Gauge) {
-	ms.gauges.RLock()
-	retMap = maps.Clone(ms.gauges.data)
-	ms.gauges.RUnlock()
+	ms.Gauges.RLock()
+	retMap = maps.Clone(ms.Gauges.Data)
+	ms.Gauges.RUnlock()
 	return
 }
 
 func (ms *MemStorage) GetAllCounter() (retMap map[string]Counter) {
-	ms.counters.RLock()
-	retMap = maps.Clone(ms.counters.data)
-	ms.counters.RUnlock()
+	ms.Counters.RLock()
+	retMap = maps.Clone(ms.Counters.Data)
+	ms.Counters.RUnlock()
 	return
 }

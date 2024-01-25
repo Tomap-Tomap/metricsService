@@ -17,11 +17,23 @@ func main() {
 		panic(err)
 	}
 
-	ms := storage.NewMemStorage()
+	ms := &storage.MemStorage{}
+	var err error
+
+	if p.Restore {
+		ms, err = storage.NewMemStorageFromGile(p.StoreInterval, p.FileStoragePath)
+	} else {
+		ms, err = storage.NewMemStorage(p.StoreInterval, p.FileStoragePath)
+	}
+
+	if err != nil {
+		logger.Log.Fatal("create memory storage", zap.Error(err))
+	}
+
 	sh := handlers.NewServiceHandlers(ms)
 	r := handlers.ServiceRouter(sh)
 
-	err := http.ListenAndServe(p.FlagRunAddr, r)
+	err = http.ListenAndServe(p.FlagRunAddr, r)
 
 	if err != nil {
 		logger.Log.Fatal("start server", zap.Error(err))

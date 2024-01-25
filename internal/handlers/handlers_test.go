@@ -18,7 +18,7 @@ const (
 )
 
 func TestServiceHandlers_updateByJSON(t *testing.T) {
-	ms := storage.NewMemStorage()
+	ms, _ := storage.NewMemStorage(0, "test")
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
@@ -109,7 +109,9 @@ func TestServiceHandlers_updateByJSON(t *testing.T) {
 }
 
 func TestServiceHandlers_updateByURL(t *testing.T) {
-	ms := storage.NewMemStorage()
+	ms := &storage.MemStorage{}
+	ms.Counters.Data = make(map[string]storage.Counter)
+	ms.Gauges.Data = make(map[string]storage.Gauge)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
@@ -184,7 +186,9 @@ func testRequest(t *testing.T, srv *httptest.Server, method, url string, body st
 }
 
 func TestServiceHandlers_valueByURL(t *testing.T) {
-	ms := storage.NewMemStorage()
+	ms := &storage.MemStorage{}
+	ms.Counters.Data = make(map[string]storage.Counter)
+	ms.Gauges.Data = make(map[string]storage.Gauge)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
@@ -258,7 +262,9 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 }
 
 func TestServiceHandlers_all(t *testing.T) {
-	ms := storage.NewMemStorage()
+	ms := &storage.MemStorage{}
+	ms.Counters.Data = make(map[string]storage.Counter)
+	ms.Gauges.Data = make(map[string]storage.Gauge)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
@@ -344,7 +350,9 @@ func TestServiceHandlers_all(t *testing.T) {
 }
 
 func TestServiceHandlers_valueByJSON(t *testing.T) {
-	ms := storage.NewMemStorage()
+	ms := &storage.MemStorage{}
+	ms.Counters.Data = make(map[string]storage.Counter)
+	ms.Gauges.Data = make(map[string]storage.Gauge)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
