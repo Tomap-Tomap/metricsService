@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/DarkOmap/metricsService/internal/models"
@@ -18,7 +20,8 @@ const (
 )
 
 func TestServiceHandlers_updateByJSON(t *testing.T) {
-	ms, _ := storage.NewMemStorage(0, "test")
+	var wg sync.WaitGroup
+	ms := storage.NewMemStorage(context.Background(), &wg, 0, "test")
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 

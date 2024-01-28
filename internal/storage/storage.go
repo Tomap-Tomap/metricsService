@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DarkOmap/metricsService/internal/file"
@@ -34,26 +32,24 @@ type MemStorage struct {
 	fileName  string
 	storeChan chan struct{}
 	storeFunc func() <-chan struct{}
+	wg        *sync.WaitGroup
 }
 
-func NewMemStorage(storeInterval uint, fileName string) (*MemStorage, error) {
+func NewMemStorage(ctx context.Context, wg *sync.WaitGroup, storeInterval uint, fileName string) *MemStorage {
 	ms := MemStorage{}
 	ms.Counters.Data = make(map[string]Counter)
 	ms.Gauges.Data = make(map[string]Gauge)
 	ms.fileName = fileName
+	ms.wg = wg
 
 	ms.initStoreFunc(storeInterval)
 
-	err := ms.runSyncFromFile()
+	ms.runSyncFromFile(ctx)
 
-	if err != nil {
-		return nil, err
-	}
-
-	return &ms, nil
+	return &ms
 }
 
-func NewMemStorageFromGile(storeInterval uint, fileName string) (*MemStorage, error) {
+func NewMemStorageFromGile(ctx context.Context, wg *sync.WaitGroup, storeInterval uint, fileName string) (*MemStorage, error) {
 	consumer, err := file.NewConsumer(fileName)
 
 	if err != nil {
@@ -70,13 +66,10 @@ func NewMemStorageFromGile(storeInterval uint, fileName string) (*MemStorage, er
 	}
 
 	ms.fileName = fileName
+	ms.wg = wg
 	ms.initStoreFunc(storeInterval)
 
-	err = ms.runSyncFromFile()
-
-	if err != nil {
-		return nil, err
-	}
+	ms.runSyncFromFile(ctx)
 
 	return ms, nil
 }
@@ -89,41 +82,46 @@ func (ms *MemStorage) initStoreFunc(storeInterval uint) {
 		}
 	} else {
 		ms.storeFunc = func() <-chan struct{} {
-			<-time.After(time.Duration(storeInterval) * time.Second)
-			return make(<-chan struct{})
+			ch := make(chan struct{})
+			go func() {
+				fmt.Println("test time1", time.Now())
+				<-time.After(time.Duration(storeInterval) * time.Second)
+				fmt.Println("test time2", time.Now())
+				ch <- struct{}{}
+			}()
+
+			return ch
 		}
 	}
 }
 
-func (ms *MemStorage) runSyncFromFile() error {
-	ch := make(chan error)
-	go func() {
+func (ms *MemStorage) runSyncFromFile(ctx context.Context) {
+	ms.wg.Add(1)
+
+	go func() error {
+		defer ms.wg.Done()
 		producer, err := file.NewProducer(ms.fileName)
 
-		ch <- err
+		if err != nil {
+			return err
+		}
 
 		defer producer.Close()
-		loop := true
-		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-		defer cancel()
-		for loop {
+
+		for {
 			select {
 			case <-ms.storeFunc():
+				fmt.Println("testSf")
 				producer.Seek()
 				producer.Encoder.Encode(ms)
 			case <-ctx.Done():
 				producer.Seek()
 				producer.Encoder.Encode(ms)
-				loop = false
+				fmt.Println("testDone")
+				return nil
 			}
 		}
 	}()
-
-	if err := <-ch; err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (ms *MemStorage) UpdateByMetrics(m models.Metrics) (models.Metrics, error) {
