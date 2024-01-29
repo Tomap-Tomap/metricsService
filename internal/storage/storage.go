@@ -1,15 +1,11 @@
 package storage
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"io"
 	"maps"
 	"sync"
-	"time"
 
-	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/models"
 )
 
@@ -29,99 +25,29 @@ type counters struct {
 type MemStorage struct {
 	Gauges    gauges   `json:"gauges"`
 	Counters  counters `json:"counters"`
-	fileName  string
-	storeChan chan struct{}
-	storeFunc func() <-chan struct{}
-	wg        *sync.WaitGroup
+	writeChan chan struct{}
 }
 
-func NewMemStorage(ctx context.Context, wg *sync.WaitGroup, storeInterval uint, fileName string) *MemStorage {
+func NewMemStorage() *MemStorage {
 	ms := MemStorage{}
 	ms.Counters.Data = make(map[string]Counter)
 	ms.Gauges.Data = make(map[string]Gauge)
-	ms.fileName = fileName
-	ms.wg = wg
-
-	ms.initStoreFunc(storeInterval)
-
-	ms.runSyncFromFile(ctx)
 
 	return &ms
 }
 
-func NewMemStorageFromGile(ctx context.Context, wg *sync.WaitGroup, storeInterval uint, fileName string) (*MemStorage, error) {
-	consumer, err := file.NewConsumer(fileName)
-
-	if err != nil {
-		return nil, err
-	}
-	defer consumer.Close()
-
-	ms := &MemStorage{}
-	ms.Counters.Data = make(map[string]Counter)
-	ms.Gauges.Data = make(map[string]Gauge)
-
-	if err := consumer.Decoder.Decode(&ms); err != nil && err != io.EOF {
-		return nil, err
-	}
-
-	ms.fileName = fileName
-	ms.wg = wg
-	ms.initStoreFunc(storeInterval)
-
-	ms.runSyncFromFile(ctx)
-
-	return ms, nil
+func (ms *MemStorage) EnableWriteEvent() {
+	ms.writeChan = make(chan struct{})
 }
 
-func (ms *MemStorage) initStoreFunc(storeInterval uint) {
-	if storeInterval == 0 {
-		ms.storeChan = make(chan struct{})
-		ms.storeFunc = func() <-chan struct{} {
-			return ms.storeChan
-		}
-	} else {
-		ms.storeFunc = func() <-chan struct{} {
-			ch := make(chan struct{})
-			go func() {
-				fmt.Println("test time1", time.Now())
-				<-time.After(time.Duration(storeInterval) * time.Second)
-				fmt.Println("test time2", time.Now())
-				ch <- struct{}{}
-			}()
-
-			return ch
-		}
+func (ms *MemStorage) GetWriteEventFunc() (func() <-chan struct{}, error) {
+	if ms.writeChan == nil {
+		return func() <-chan struct{} { return nil }, fmt.Errorf("write event not enable")
 	}
-}
 
-func (ms *MemStorage) runSyncFromFile(ctx context.Context) {
-	ms.wg.Add(1)
-
-	go func() error {
-		defer ms.wg.Done()
-		producer, err := file.NewProducer(ms.fileName)
-
-		if err != nil {
-			return err
-		}
-
-		defer producer.Close()
-
-		for {
-			select {
-			case <-ms.storeFunc():
-				fmt.Println("testSf")
-				producer.Seek()
-				producer.Encoder.Encode(ms)
-			case <-ctx.Done():
-				producer.Seek()
-				producer.Encoder.Encode(ms)
-				fmt.Println("testDone")
-				return nil
-			}
-		}
-	}()
+	return func() <-chan struct{} {
+		return ms.writeChan
+	}, nil
 }
 
 func (ms *MemStorage) UpdateByMetrics(m models.Metrics) (models.Metrics, error) {
@@ -191,8 +117,8 @@ func (ms *MemStorage) setGauge(g Gauge, name string) Gauge {
 	ms.Gauges.Data[name] = g
 	retV := ms.Gauges.Data[name]
 
-	if ms.storeChan != nil {
-		ms.storeChan <- struct{}{}
+	if ms.writeChan != nil {
+		ms.writeChan <- struct{}{}
 	}
 	ms.Gauges.Unlock()
 
@@ -216,8 +142,8 @@ func (ms *MemStorage) addCounter(c Counter, name string) Counter {
 	ms.Counters.Data[name] += c
 	retC := ms.Counters.Data[name]
 
-	if ms.storeChan != nil {
-		ms.storeChan <- struct{}{}
+	if ms.writeChan != nil {
+		ms.writeChan <- struct{}{}
 	}
 
 	ms.Counters.Unlock()
