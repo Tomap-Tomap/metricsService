@@ -5,6 +5,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/client"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -14,7 +15,13 @@ func main() {
 		panic(err)
 	}
 
+	logger.Log.Info("create client")
 	c := client.NewClient(p.ListenAddr)
+	logger.Log.Info("create agent")
 	a := agent.NewAgent(c, p.ReportInterval, p.PollInterval)
-	a.Run()
+	logger.Log.Info("agent start")
+	err := a.Run()
+	if err != nil {
+		logger.Log.Fatal("run agent", zap.Error(err))
+	}
 }

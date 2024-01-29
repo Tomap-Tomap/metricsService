@@ -2,10 +2,10 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os/signal"
 	"runtime"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -14,6 +14,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/memstats"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type Agent struct {
@@ -23,42 +24,45 @@ type Agent struct {
 	ms                           runtime.MemStats
 }
 
-func (a *Agent) Run() {
-	var wg sync.WaitGroup
-
+func (a *Agent) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	wg.Add(2)
+	eg, egCtx := errgroup.WithContext(ctx)
 
-	go func() {
-		defer wg.Done()
-		loop := true
-		for loop {
+	eg.Go(func() error {
+		logger.Log.Info("send report start")
+		for {
 			select {
 			case <-time.After(time.Duration(a.reportInterval) * time.Second):
-				a.sendReport(ctx)
-			case <-ctx.Done():
-				loop = false
+				a.sendReport(egCtx)
+			case <-egCtx.Done():
+				logger.Log.Info("send report done")
+				return nil
 			}
 		}
-	}()
+	})
 
-	go func() {
-		defer wg.Done()
-		loop := true
-		for loop {
+	eg.Go(func() error {
+		logger.Log.Info("read mem stats start")
+		for {
 			select {
 			case <-time.After(time.Duration(a.pollInterval) * time.Second):
 				runtime.ReadMemStats(&a.ms)
 				a.pollCount.Add(1)
 			case <-ctx.Done():
-				loop = false
+				logger.Log.Info("read mem stats done")
+				return nil
 			}
 		}
-	}()
+	})
 
-	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		logger.Log.Error("problem with working agent", zap.Error(err))
+		return fmt.Errorf("problem with working agent: %w", err)
+	}
+
+	return nil
 }
 
 func (a *Agent) sendReport(ctx context.Context) {
