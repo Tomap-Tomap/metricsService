@@ -23,66 +23,66 @@ func checkType(mType string) error {
 	}
 }
 
-func NewMetricsForGauge(id string, value float64) Metrics {
-	return Metrics{ID: id, MType: "gauge", Value: &value}
+func NewMetricsForGauge(id string, value float64) *Metrics {
+	return &Metrics{ID: id, MType: "gauge", Value: &value}
 }
 
-func NewMetricsForCounter(id string, delta int64) Metrics {
-	return Metrics{ID: id, MType: "counter", Delta: &delta}
+func NewMetricsForCounter(id string, delta int64) *Metrics {
+	return &Metrics{ID: id, MType: "counter", Delta: &delta}
 }
 
-func NewMetrics(id, mType string) (Metrics, error) {
+func NewMetrics(id, mType string) (*Metrics, error) {
 	if err := checkType(mType); err != nil {
-		return Metrics{}, fmt.Errorf("check metrics type id %s, mType %s: %w", id, mType, err)
+		return nil, fmt.Errorf("check metrics type id %s, mType %s: %w", id, mType, err)
 	}
 
-	return Metrics{ID: id, MType: mType}, nil
+	return &Metrics{ID: id, MType: mType}, nil
 }
 
-func NewModelByStrings(id, mType, value string) (Metrics, error) {
+func NewModelByStrings(id, mType, value string) (*Metrics, error) {
 	switch strings.ToLower(mType) {
 	case "counter":
 		return counterMetricsBySting(id, value)
 	case "gauge":
 		return gaugeMetricsByStrings(id, value)
 	default:
-		return Metrics{}, fmt.Errorf("unknown metrics type name %s, type %s, value %s", id, mType, value)
+		return nil, fmt.Errorf("unknown metrics type name %s, type %s, value %s", id, mType, value)
 	}
 }
 
-func counterMetricsBySting(id, delta string) (Metrics, error) {
+func counterMetricsBySting(id, delta string) (*Metrics, error) {
 	v, err := parseCounter(delta)
 
 	if err != nil {
-		return Metrics{}, fmt.Errorf("parse counter %s %s: %w", id, delta, err)
+		return nil, fmt.Errorf("parse counter %s %s: %w", id, delta, err)
 	}
 
 	return NewMetricsForCounter(id, v), nil
 }
 
-func gaugeMetricsByStrings(id, value string) (Metrics, error) {
+func gaugeMetricsByStrings(id, value string) (*Metrics, error) {
 	v, err := parseGauge(value)
 
 	if err != nil {
-		return Metrics{}, fmt.Errorf("parse gauge %s %s: %w", id, value, err)
+		return nil, fmt.Errorf("parse gauge %s %s: %w", id, value, err)
 	}
 
 	return NewMetricsForGauge(id, v), nil
 }
 
-func NewModelsByJSON(j []byte) (Metrics, error) {
+func NewModelsByJSON(j []byte) (*Metrics, error) {
 	var m Metrics
 	err := json.Unmarshal(j, &m)
 
 	if err != nil {
-		return Metrics{}, fmt.Errorf("unmarshall json %s: %w", string(j), err)
+		return nil, fmt.Errorf("unmarshall json %s: %w", string(j), err)
 	}
 
 	if err := checkType(m.MType); err != nil {
-		return Metrics{}, fmt.Errorf("check metrics type id %s, mType %s: %w", m.ID, m.MType, err)
+		return nil, fmt.Errorf("check metrics type id %s, mType %s: %w", m.ID, m.MType, err)
 	}
 
-	return m, nil
+	return &m, nil
 }
 
 func parseGauge(g string) (float64, error) {

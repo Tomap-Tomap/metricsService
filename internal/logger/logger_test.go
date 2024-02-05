@@ -16,7 +16,7 @@ import (
 func Test_loggingResponseWriter_Write(t *testing.T) {
 	type fields struct {
 		ResponseWriter http.ResponseWriter
-		responseData   *responseData
+		bytes          int
 	}
 	type args struct {
 		b []byte
@@ -36,7 +36,6 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 			name: "test zero",
 			fields: fields{
 				ResponseWriter: httptest.NewRecorder(),
-				responseData:   &responseData{0, 0},
 			},
 			args:    args{[]byte{}},
 			want:    want{0, 0},
@@ -46,7 +45,6 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 			name: "test not zero",
 			fields: fields{
 				ResponseWriter: httptest.NewRecorder(),
-				responseData:   &responseData{0, 0},
 			},
 			args:    args{[]byte{1, 2, 3}},
 			want:    want{3, 3},
@@ -56,7 +54,7 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 			name: "test not empty resData",
 			fields: fields{
 				ResponseWriter: httptest.NewRecorder(),
-				responseData:   &responseData{0, 3},
+				bytes:          3,
 			},
 			args:    args{[]byte{1, 2, 3}},
 			want:    want{3, 6},
@@ -67,7 +65,7 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &loggingResponseWriter{
 				ResponseWriter: tt.fields.ResponseWriter,
-				responseData:   tt.fields.responseData,
+				bytes:          tt.fields.bytes,
 			}
 			got, err := r.Write(tt.args.b)
 
@@ -77,7 +75,7 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want.wantRet, got)
-			assert.Equal(t, tt.want.wantSize, r.responseData.size)
+			assert.Equal(t, tt.want.wantSize, r.bytes)
 		})
 	}
 }
@@ -85,7 +83,7 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 func Test_loggingResponseWriter_WriteHeader(t *testing.T) {
 	type fields struct {
 		ResponseWriter http.ResponseWriter
-		responseData   *responseData
+		code           int
 	}
 	type args struct {
 		statusCode int
@@ -100,7 +98,6 @@ func Test_loggingResponseWriter_WriteHeader(t *testing.T) {
 			name: "test 200",
 			fields: fields{
 				ResponseWriter: httptest.NewRecorder(),
-				responseData:   &responseData{0, 0},
 			},
 			args: args{200},
 			want: 200,
@@ -109,7 +106,7 @@ func Test_loggingResponseWriter_WriteHeader(t *testing.T) {
 			name: "test 400",
 			fields: fields{
 				ResponseWriter: httptest.NewRecorder(),
-				responseData:   &responseData{123, 0},
+				code:           123,
 			},
 			args: args{400},
 			want: 400,
@@ -118,7 +115,6 @@ func Test_loggingResponseWriter_WriteHeader(t *testing.T) {
 			name: "test not empty resData",
 			fields: fields{
 				ResponseWriter: httptest.NewRecorder(),
-				responseData:   &responseData{0, 0},
 			},
 			args: args{400},
 			want: 400,
@@ -128,11 +124,11 @@ func Test_loggingResponseWriter_WriteHeader(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &loggingResponseWriter{
 				ResponseWriter: tt.fields.ResponseWriter,
-				responseData:   tt.fields.responseData,
+				code:           tt.fields.code,
 			}
 			r.WriteHeader(tt.args.statusCode)
 
-			assert.Equal(t, tt.want, r.responseData.status)
+			assert.Equal(t, tt.want, r.code)
 		})
 	}
 }

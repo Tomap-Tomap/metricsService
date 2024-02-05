@@ -120,24 +120,24 @@ func TestNewMetrics(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    Metrics
+		want    *Metrics
 		wantErr bool
 	}{
 		{
 			name:    fmt.Sprintf("test id %s mType %s", "test", "error"),
 			args:    args{id: "test", mType: "error"},
-			want:    Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: fmt.Sprintf("test id %s mType %s", "test", "gauge"),
 			args: args{id: "test", mType: "gauge"},
-			want: Metrics{ID: "test", MType: "gauge"},
+			want: &Metrics{ID: "test", MType: "gauge"},
 		},
 		{
 			name: fmt.Sprintf("test id %s mType %s", "test", "counter"),
 			args: args{id: "test", mType: "counter"},
-			want: Metrics{ID: "test", MType: "counter"},
+			want: &Metrics{ID: "test", MType: "counter"},
 		},
 	}
 	for _, tt := range tests {
@@ -167,25 +167,25 @@ func TestNewModelByURL(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    Metrics
+		want    *Metrics
 		wantErr bool
 	}{
 		{
 			name:    "test gauge",
 			args:    args{"test", "gauge", "1.1"},
-			want:    Metrics{ID: "test", MType: "gauge", Value: &testGauge},
+			want:    &Metrics{ID: "test", MType: "gauge", Value: &testGauge},
 			wantErr: false,
 		},
 		{
 			name:    "test counter",
 			args:    args{"test", "counter", "1"},
-			want:    Metrics{ID: "test", MType: "counter", Delta: &testCounter},
+			want:    &Metrics{ID: "test", MType: "counter", Delta: &testCounter},
 			wantErr: false,
 		},
 		{
 			name:    "test error",
 			args:    args{"test", "test", "1"},
-			want:    Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 	}
@@ -214,7 +214,7 @@ func TestNewModelsByJSON(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    Metrics
+		want    *Metrics
 		wantErr bool
 	}{
 		{
@@ -224,7 +224,7 @@ func TestNewModelsByJSON(t *testing.T) {
 					"type":"gauge",
 					"value":1.1
 				}`)},
-			want:    Metrics{ID: "test", MType: "gauge", Value: &testGauge},
+			want:    &Metrics{ID: "test", MType: "gauge", Value: &testGauge},
 			wantErr: false,
 		},
 		{
@@ -234,7 +234,7 @@ func TestNewModelsByJSON(t *testing.T) {
 					"type":"counter",
 					"delta":1
 				}`)},
-			want:    Metrics{ID: "test", MType: "counter", Delta: &testCounter},
+			want:    &Metrics{ID: "test", MType: "counter", Delta: &testCounter},
 			wantErr: false,
 		},
 		{
@@ -244,7 +244,7 @@ func TestNewModelsByJSON(t *testing.T) {
 					"type":"counter",
 					"delta":1,
 				}`)},
-			want:    Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
@@ -254,7 +254,7 @@ func TestNewModelsByJSON(t *testing.T) {
 					"type":"error",
 					"delta":1
 				}`)},
-			want:    Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 	}
@@ -321,22 +321,22 @@ func TestNewMetricsForGauge(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want Metrics
+		want *Metrics
 	}{
 		{
 			name: fmt.Sprintf("test %f", testGauge1),
 			args: args{"test", testGauge1},
-			want: Metrics{ID: "test", MType: "gauge", Value: &testGauge1},
+			want: &Metrics{ID: "test", MType: "gauge", Value: &testGauge1},
 		},
 		{
 			name: fmt.Sprintf("test %f", testGauge2),
 			args: args{"test", testGauge2},
-			want: Metrics{ID: "test", MType: "gauge", Value: &testGauge2},
+			want: &Metrics{ID: "test", MType: "gauge", Value: &testGauge2},
 		},
 		{
 			name: fmt.Sprintf("test %f", testGauge3),
 			args: args{"test", testGauge3},
-			want: Metrics{ID: "test", MType: "gauge", Value: &testGauge3},
+			want: &Metrics{ID: "test", MType: "gauge", Value: &testGauge3},
 		},
 	}
 	for _, tt := range tests {
@@ -360,22 +360,22 @@ func TestNewMetricsForCounter(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want Metrics
+		want *Metrics
 	}{
 		{
 			name: fmt.Sprintf("test %d", testCounter1),
 			args: args{"test", testCounter1},
-			want: Metrics{ID: "test", MType: "counter", Delta: &testCounter1},
+			want: &Metrics{ID: "test", MType: "counter", Delta: &testCounter1},
 		},
 		{
 			name: fmt.Sprintf("test %d", testCounter2),
 			args: args{"test", testCounter2},
-			want: Metrics{ID: "test", MType: "counter", Delta: &testCounter2},
+			want: &Metrics{ID: "test", MType: "counter", Delta: &testCounter2},
 		},
 		{
 			name: fmt.Sprintf("test %d", testCounter3),
 			args: args{"test", testCounter3},
-			want: Metrics{ID: "test", MType: "counter", Delta: &testCounter3},
+			want: &Metrics{ID: "test", MType: "counter", Delta: &testCounter3},
 		},
 	}
 	for _, tt := range tests {
@@ -399,29 +399,29 @@ func Test_counterMetricsBySting(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    Metrics
+		want    *Metrics
 		wantErr bool
 	}{
 		{
 			name:    "test error",
 			args:    args{"error", "error"},
-			want:    Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: fmt.Sprintf("test %d", testCounter1),
 			args: args{"test", "1"},
-			want: Metrics{ID: "test", MType: "counter", Delta: &testCounter1},
+			want: &Metrics{ID: "test", MType: "counter", Delta: &testCounter1},
 		},
 		{
 			name: fmt.Sprintf("test %d", testCounter2),
 			args: args{"test", "2"},
-			want: Metrics{ID: "test", MType: "counter", Delta: &testCounter2},
+			want: &Metrics{ID: "test", MType: "counter", Delta: &testCounter2},
 		},
 		{
 			name: fmt.Sprintf("test %d", testCounter3),
 			args: args{"test", "0"},
-			want: Metrics{ID: "test", MType: "counter", Delta: &testCounter3},
+			want: &Metrics{ID: "test", MType: "counter", Delta: &testCounter3},
 		},
 	}
 	for _, tt := range tests {
@@ -450,29 +450,29 @@ func Test_gaugeMetricsByStrings(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    Metrics
+		want    *Metrics
 		wantErr bool
 	}{
 		{
 			name:    "test error",
 			args:    args{"error", "error"},
-			want:    Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: fmt.Sprintf("test %f", testGauge1),
 			args: args{"test", "1.1"},
-			want: Metrics{ID: "test", MType: "gauge", Value: &testGauge1},
+			want: &Metrics{ID: "test", MType: "gauge", Value: &testGauge1},
 		},
 		{
 			name: fmt.Sprintf("test %f", testGauge2),
 			args: args{"test", "0.1"},
-			want: Metrics{ID: "test", MType: "gauge", Value: &testGauge2},
+			want: &Metrics{ID: "test", MType: "gauge", Value: &testGauge2},
 		},
 		{
 			name: fmt.Sprintf("test %f", testGauge3),
 			args: args{"test", "0"},
-			want: Metrics{ID: "test", MType: "gauge", Value: &testGauge3},
+			want: &Metrics{ID: "test", MType: "gauge", Value: &testGauge3},
 		},
 	}
 	for _, tt := range tests {

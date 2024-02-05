@@ -73,7 +73,7 @@ func TestGzipCompression(t *testing.T) {
 
 func TestGetCompressJSON(t *testing.T) {
 	type args struct {
-		m models.Metrics
+		m *models.Metrics
 	}
 	tests := []struct {
 		name string
@@ -88,7 +88,7 @@ func TestGetCompressJSON(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetCompressJSON(tt.args.m)
+			got, err := GetCompressedJSON(tt.args.m)
 			require.NoError(t, err)
 
 			var buf bytes.Buffer

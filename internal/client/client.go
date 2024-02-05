@@ -15,10 +15,10 @@ type Client struct {
 	restyClient *resty.Client
 }
 
-func (c Client) SendGauge(ctx context.Context, name string, value float64) error {
+func (c *Client) SendGauge(ctx context.Context, name string, value float64) error {
 	m := models.NewMetricsForGauge(name, value)
 
-	b, err := compresses.GetCompressJSON(m)
+	b, err := compresses.GetCompressedJSON(m)
 
 	if err != nil {
 		return fmt.Errorf("failed compress model name %s value %f: %w", name, value, err)
@@ -41,10 +41,10 @@ func (c Client) SendGauge(ctx context.Context, name string, value float64) error
 	return nil
 }
 
-func (c Client) SendCounter(ctx context.Context, name string, delta int64) error {
+func (c *Client) SendCounter(ctx context.Context, name string, delta int64) error {
 	m := models.NewMetricsForCounter(name, delta)
 
-	b, err := compresses.GetCompressJSON(m)
+	b, err := compresses.GetCompressedJSON(m)
 
 	if err != nil {
 		return fmt.Errorf("failed compress model name %s delta %d: %w", name, delta, err)
@@ -67,6 +67,6 @@ func (c Client) SendCounter(ctx context.Context, name string, delta int64) error
 	return nil
 }
 
-func NewClient(addr string) Client {
-	return Client{addr, resty.New()}
+func NewClient(addr string) *Client {
+	return &Client{addr, resty.New()}
 }

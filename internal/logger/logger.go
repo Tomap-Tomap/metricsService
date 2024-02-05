@@ -9,26 +9,29 @@ import (
 )
 
 type (
-	responseData struct {
-		status int
-		size   int
-	}
-
 	loggingResponseWriter struct {
 		http.ResponseWriter
-		responseData *responseData
+		wroteHeader bool
+		code        int
+		bytes       int
 	}
 )
 
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
+	}
 	size, err := r.ResponseWriter.Write(b)
-	r.responseData.size += size
+	r.bytes += size
 	return size, err
 }
 
 func (r *loggingResponseWriter) WriteHeader(statusCode int) {
-	r.ResponseWriter.WriteHeader(statusCode)
-	r.responseData.status = statusCode
+	if !r.wroteHeader {
+		r.code = statusCode
+		r.wroteHeader = true
+		r.ResponseWriter.WriteHeader(statusCode)
+	}
 }
 
 var Log *zap.Logger = zap.NewNop()
@@ -58,28 +61,40 @@ func RequestLogger(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		responseData := &responseData{
-			status: 0,
-			size:   0,
-		}
-
 		lw := loggingResponseWriter{
 			ResponseWriter: w,
-			responseData:   responseData,
 		}
 
+		defer func() {
+			duration := time.Since(start)
+
+			Log.Info("got incoming HTTP request",
+				zap.String("uri", r.RequestURI),
+				zap.String("method", r.Method),
+				zap.String("duration", duration.String()),
+				zap.Int("status", lw.code),
+				zap.Int("size", lw.bytes),
+			)
+		}()
+
 		h.ServeHTTP(&lw, r)
-
-		duration := time.Since(start)
-
-		Log.Info("got incoming HTTP request",
-			zap.String("uri", r.RequestURI),
-			zap.String("method", r.Method),
-			zap.String("duration", duration.String()),
-			zap.Int("status", responseData.status),
-			zap.Int("size", responseData.size),
-		)
 	}
 
 	return http.HandlerFunc(logFn)
+}
+
+func LogBadRequest(handlerName, uri string, err error) {
+	Log.Info("Got incorrect request",
+		zap.String("handler", handlerName),
+		zap.String("uri", uri),
+		zap.Error(err),
+	)
+}
+
+func LogNotFound(handlerName, uri string, err error) {
+	Log.Info("Value not found",
+		zap.String("handler", handlerName),
+		zap.String("uri", uri),
+		zap.Error(err),
+	)
 }

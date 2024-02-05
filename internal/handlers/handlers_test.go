@@ -1,15 +1,20 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/models"
+	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -18,7 +23,15 @@ const (
 )
 
 func TestServiceHandlers_updateByJSON(t *testing.T) {
-	ms := storage.NewMemStorage()
+	ms, err := storage.NewMemStorage(
+		context.Background(),
+		&errgroup.Group{},
+		&file.Producer{},
+		parameters.ServerParameters{
+			Restore:       false,
+			StoreInterval: 0,
+		})
+	require.NoError(t, err)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
@@ -109,9 +122,15 @@ func TestServiceHandlers_updateByJSON(t *testing.T) {
 }
 
 func TestServiceHandlers_updateByURL(t *testing.T) {
-	ms := &storage.MemStorage{}
-	ms.Counters.Data = make(map[string]storage.Counter)
-	ms.Gauges.Data = make(map[string]storage.Gauge)
+	ms, err := storage.NewMemStorage(
+		context.Background(),
+		&errgroup.Group{},
+		&file.Producer{},
+		parameters.ServerParameters{
+			Restore:       false,
+			StoreInterval: 0,
+		})
+	require.NoError(t, err)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
@@ -186,17 +205,23 @@ func testRequest(t *testing.T, srv *httptest.Server, method, url string, body st
 }
 
 func TestServiceHandlers_valueByURL(t *testing.T) {
-	ms := &storage.MemStorage{}
-	ms.Counters.Data = make(map[string]storage.Counter)
-	ms.Gauges.Data = make(map[string]storage.Gauge)
+	ms, err := storage.NewMemStorage(
+		context.Background(),
+		&errgroup.Group{},
+		&file.Producer{},
+		parameters.ServerParameters{
+			Restore:       false,
+			StoreInterval: 0,
+		})
+	require.NoError(t, err)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	sh.ms.UpdateByMetrics(models.NewMetricsForGauge("test", 1.1))
-	sh.ms.UpdateByMetrics(models.NewMetricsForCounter("test", 1))
+	sh.ms.UpdateByMetrics(*models.NewMetricsForGauge("test", 1.1))
+	sh.ms.UpdateByMetrics(*models.NewMetricsForCounter("test", 1))
 
 	type want struct {
 		code        int
@@ -262,17 +287,23 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 }
 
 func TestServiceHandlers_all(t *testing.T) {
-	ms := &storage.MemStorage{}
-	ms.Counters.Data = make(map[string]storage.Counter)
-	ms.Gauges.Data = make(map[string]storage.Gauge)
+	ms, err := storage.NewMemStorage(
+		context.Background(),
+		&errgroup.Group{},
+		&file.Producer{},
+		parameters.ServerParameters{
+			Restore:       false,
+			StoreInterval: 0,
+		})
+	require.NoError(t, err)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	sh.ms.UpdateByMetrics(models.NewMetricsForGauge("test", 1.1))
-	sh.ms.UpdateByMetrics(models.NewMetricsForCounter("test", 1))
+	sh.ms.UpdateByMetrics(*models.NewMetricsForGauge("test", 1.1))
+	sh.ms.UpdateByMetrics(*models.NewMetricsForCounter("test", 1))
 
 	htmlText := `<!DOCTYPE html>
 	<html>
@@ -350,17 +381,23 @@ func TestServiceHandlers_all(t *testing.T) {
 }
 
 func TestServiceHandlers_valueByJSON(t *testing.T) {
-	ms := &storage.MemStorage{}
-	ms.Counters.Data = make(map[string]storage.Counter)
-	ms.Gauges.Data = make(map[string]storage.Gauge)
+	ms, err := storage.NewMemStorage(
+		context.Background(),
+		&errgroup.Group{},
+		&file.Producer{},
+		parameters.ServerParameters{
+			Restore:       false,
+			StoreInterval: 0,
+		})
+	require.NoError(t, err)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	sh.ms.UpdateByMetrics(models.NewMetricsForGauge("test", 1.1))
-	sh.ms.UpdateByMetrics(models.NewMetricsForCounter("test", 1))
+	sh.ms.UpdateByMetrics(*models.NewMetricsForGauge("test", 1.1))
+	sh.ms.UpdateByMetrics(*models.NewMetricsForCounter("test", 1))
 
 	type want struct {
 		code              int

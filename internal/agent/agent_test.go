@@ -11,7 +11,7 @@ func TestNewAgent(t *testing.T) {
 	testClient := client.NewClient("test")
 
 	type args struct {
-		client         client.Client
+		client         *client.Client
 		reportInterval uint
 		pollInterval   uint
 	}

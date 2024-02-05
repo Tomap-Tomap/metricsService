@@ -19,7 +19,7 @@ import (
 
 type Agent struct {
 	reportInterval, pollInterval uint
-	client                       client.Client
+	client                       *client.Client
 	pollCount                    atomic.Int64
 	ms                           runtime.MemStats
 }
@@ -31,34 +31,34 @@ func (a *Agent) Run() error {
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		logger.Log.Info("send report start")
+		logger.Log.Info("Send report start")
 		for {
 			select {
 			case <-time.After(time.Duration(a.reportInterval) * time.Second):
 				a.sendReport(egCtx)
 			case <-egCtx.Done():
-				logger.Log.Info("send report done")
+				logger.Log.Info("Send report done")
 				return nil
 			}
 		}
 	})
 
 	eg.Go(func() error {
-		logger.Log.Info("read mem stats start")
+		logger.Log.Info("Read mem stats start")
 		for {
 			select {
 			case <-time.After(time.Duration(a.pollInterval) * time.Second):
 				runtime.ReadMemStats(&a.ms)
 				a.pollCount.Add(1)
 			case <-ctx.Done():
-				logger.Log.Info("read mem stats done")
+				logger.Log.Info("Read mem stats done")
 				return nil
 			}
 		}
 	})
 
 	if err := eg.Wait(); err != nil {
-		logger.Log.Error("problem with working agent", zap.Error(err))
+		logger.Log.Error("Problem with working agent", zap.Error(err))
 		return fmt.Errorf("problem with working agent: %w", err)
 	}
 
@@ -73,7 +73,7 @@ func (a *Agent) sendReport(ctx context.Context) {
 
 		if err != nil {
 			logger.Log.Warn(
-				"push memstats",
+				"Push memstats",
 				zap.String("name", k),
 				zap.Float64("value", v),
 				zap.Error(err),
@@ -103,7 +103,7 @@ func (a *Agent) sendReport(ctx context.Context) {
 	}
 }
 
-func NewAgent(client client.Client, reportInterval, pollInterval uint) (a *Agent) {
+func NewAgent(client *client.Client, reportInterval, pollInterval uint) (a *Agent) {
 	a = &Agent{reportInterval: reportInterval, pollInterval: pollInterval, client: client}
 	runtime.ReadMemStats(&a.ms)
 	return

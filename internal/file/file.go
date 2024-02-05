@@ -2,12 +2,15 @@ package file
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"sync"
 )
 
 type Producer struct {
 	file    *os.File
 	Encoder *json.Encoder
+	m       sync.Mutex
 }
 
 func NewProducer(fileName string) (*Producer, error) {
@@ -29,6 +32,20 @@ func (p *Producer) Seek() error {
 
 func (p *Producer) Close() error {
 	return p.file.Close()
+}
+
+func (p *Producer) WriteInFile(value any) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+	if err := p.Seek(); err != nil {
+		return fmt.Errorf("seek file: %w", err)
+	}
+
+	if err := p.Encoder.Encode(value); err != nil {
+		return fmt.Errorf("encode value in file: %w", err)
+	}
+
+	return nil
 }
 
 type Consumer struct {

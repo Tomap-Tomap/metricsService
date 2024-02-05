@@ -15,13 +15,13 @@ func main() {
 		panic(err)
 	}
 
-	logger.Log.Info("create client")
+	logger.Log.Info("Create client")
 	c := client.NewClient(p.ListenAddr)
-	logger.Log.Info("create agent")
+	logger.Log.Info("Create agent")
 	a := agent.NewAgent(c, p.ReportInterval, p.PollInterval)
-	logger.Log.Info("agent start")
+	logger.Log.Info("Agent start")
 	err := a.Run()
 	if err != nil {
-		logger.Log.Fatal("run agent", zap.Error(err))
+		logger.Log.Fatal("Run agent", zap.Error(err))
 	}
 }

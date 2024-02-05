@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-
-	"github.com/DarkOmap/metricsService/internal/models"
 )
 
 type compressWriter struct {
@@ -75,7 +73,7 @@ func CompressHandle(next http.Handler) http.Handler {
 	})
 }
 
-func GetCompressJSON(m models.Metrics) ([]byte, error) {
+func GetCompressedJSON(m any) ([]byte, error) {
 	j, err := json.Marshal(m)
 
 	if err != nil {

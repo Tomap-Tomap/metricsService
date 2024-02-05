@@ -17,8 +17,8 @@ import (
 )
 
 type repository interface {
-	UpdateByMetrics(m models.Metrics) (models.Metrics, error)
-	ValueByMetrics(m models.Metrics) (models.Metrics, error)
+	UpdateByMetrics(m models.Metrics) (*models.Metrics, error)
+	ValueByMetrics(m models.Metrics) (*models.Metrics, error)
 	GetAllGauge() map[string]storage.Gauge
 	GetAllCounter() map[string]storage.Counter
 }
@@ -34,23 +34,15 @@ func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) 
 	m, err := getModelsByJSON(r.Body)
 
 	if err != nil {
-		logger.Log.Info("got incorrect request",
-			zap.String("handler", "updateByJSON"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogBadRequest("updateByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	m, err = sh.ms.UpdateByMetrics(m)
+	m, err = sh.ms.UpdateByMetrics(*m)
 
 	if err != nil {
-		logger.Log.Info("got incorrect request",
-			zap.String("handler", "updateByJSON"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogBadRequest("updateByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -58,11 +50,7 @@ func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) 
 	resp, err := json.Marshal(m)
 
 	if err != nil {
-		logger.Log.Info("got incorrect request",
-			zap.String("handler", "updateByJSON"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogBadRequest("updateByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -82,23 +70,15 @@ func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		logger.Log.Info("got incorrect request",
-			zap.String("handler", "updateByURL"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogBadRequest("updateByURL", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	_, err = sh.ms.UpdateByMetrics(m)
+	_, err = sh.ms.UpdateByMetrics(*m)
 
 	if err != nil {
-		logger.Log.Info("got incorrect request",
-			zap.String("handler", "updateByURL"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogBadRequest("updateByURL", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -113,23 +93,15 @@ func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
 	m, err := getModelsByJSON(r.Body)
 
 	if err != nil {
-		logger.Log.Info("got incorrect request",
-			zap.String("handler", "valueByJSON"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogBadRequest("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	m, err = sh.ms.ValueByMetrics(m)
+	m, err = sh.ms.ValueByMetrics(*m)
 
 	if err != nil {
-		logger.Log.Info("value not found",
-			zap.String("handler", "valueByJSON"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogNotFound("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -137,11 +109,7 @@ func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
 	resp, err := json.Marshal(m)
 
 	if err != nil {
-		logger.Log.Info("got incorrect request",
-			zap.String("handler", "valueByJSON"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogBadRequest("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -160,23 +128,15 @@ func (sh *ServiceHandlers) valueByURL(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		logger.Log.Info("value not found",
-			zap.String("handler", "valueByURL"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogNotFound("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	m, err = sh.ms.ValueByMetrics(m)
+	m, err = sh.ms.ValueByMetrics(*m)
 
 	if err != nil {
-		logger.Log.Info("value not found",
-			zap.String("handler", "valueByURL"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
+		logger.LogNotFound("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -229,12 +189,12 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 	t, err := t.Parse(tmpl)
 
 	if err != nil {
-		logger.Log.Info("html parse",
+		logger.Log.Info("HTML parse",
 			zap.String("handler", "all"),
 			zap.String("uri", r.RequestURI),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -247,29 +207,29 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 	err = t.Execute(w, result)
 
 	if err != nil {
-		logger.Log.Info("html execute",
+		logger.Log.Info("HTML execute",
 			zap.String("handler", "all"),
 			zap.String("uri", r.RequestURI),
 			zap.Error(err),
 		)
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
-func getModelsByJSON(body io.ReadCloser) (models.Metrics, error) {
+func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(body)
 
 	if err != nil {
-		return models.Metrics{}, err
+		return nil, err
 	}
 
 	m, err := models.NewModelsByJSON(buf.Bytes())
 
 	if err != nil {
-		return models.Metrics{}, err
+		return nil, err
 	}
 
 	return m, err

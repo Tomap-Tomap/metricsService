@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,6 +48,7 @@ func TestMemStorage_SetGauge(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 
 			m.setGauge(tt.args.value, tt.args.name)
@@ -93,6 +95,7 @@ func TestMemStorage_AddCounter(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 
 			m.addCounter(tt.args.value, tt.args.name)
@@ -135,6 +138,7 @@ func TestMemStorage_GetGauge(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 			got, err := m.getGauge(tt.args)
 
@@ -183,6 +187,7 @@ func TestMemStorage_GetCounter(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 			got, err := m.getCounter(tt.args)
 
@@ -203,13 +208,13 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 		Counters map[string]Counter
 	}
 	type args struct {
-		m models.Metrics
+		m *models.Metrics
 	}
 	tests := []struct {
 		name    string
 		fields  fields
 		args    args
-		want    models.Metrics
+		want    *models.Metrics
 		wantErr bool
 	}{
 		{
@@ -243,9 +248,9 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 				Counters: map[string]Counter{"test": 1},
 			},
 			args: args{
-				m: models.Metrics{ID: "test", MType: "error"},
+				m: &models.Metrics{ID: "test", MType: "error"},
 			},
-			want:    models.Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 	}
@@ -258,8 +263,9 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
-			got, err := ms.UpdateByMetrics(tt.args.m)
+			got, err := ms.UpdateByMetrics(*tt.args.m)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -287,42 +293,42 @@ func TestMemStorage_ValueByMetrics(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    models.Metrics
+		want    *models.Metrics
 		wantErr bool
 	}{
 		{
 			name:    "error gauge",
 			fields:  fields{Gauges: map[string]Gauge{"test": 0.01}},
 			args:    args{models.Metrics{ID: "error", MType: "gauge"}},
-			want:    models.Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "error counter",
 			fields:  fields{Counters: map[string]Counter{"test": 1}},
 			args:    args{models.Metrics{ID: "error", MType: "counter"}},
-			want:    models.Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "error type",
 			fields:  fields{Counters: map[string]Counter{"test": 1}},
 			args:    args{models.Metrics{ID: "error", MType: "error"}},
-			want:    models.Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "get gauge",
 			fields:  fields{Gauges: map[string]Gauge{"test": 0.01}},
 			args:    args{models.Metrics{ID: "test", MType: "gauge"}},
-			want:    models.Metrics{ID: "test", MType: "gauge", Value: &testGauge},
+			want:    &models.Metrics{ID: "test", MType: "gauge", Value: &testGauge},
 			wantErr: false,
 		},
 		{
 			name:    "get counter",
 			fields:  fields{Counters: map[string]Counter{"test": 1}},
 			args:    args{models.Metrics{ID: "test", MType: "counter"}},
-			want:    models.Metrics{ID: "test", MType: "counter", Delta: &testCounter},
+			want:    &models.Metrics{ID: "test", MType: "counter", Delta: &testCounter},
 			wantErr: false,
 		},
 	}
@@ -335,6 +341,7 @@ func TestMemStorage_ValueByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 			got, err := ms.ValueByMetrics(tt.args.m)
 			if tt.wantErr {
@@ -365,14 +372,14 @@ func TestMemStorage_updateCounterByMetrics(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    models.Metrics
+		want    *models.Metrics
 		wantErr bool
 	}{
 		{
 			name:    "test error",
 			fields:  fields{Counters: map[string]Counter{"test": 1}},
 			args:    args{"test", nil},
-			want:    models.Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
@@ -397,6 +404,7 @@ func TestMemStorage_updateCounterByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 			got, err := ms.updateCounterByMetrics(tt.args.id, tt.args.delta)
 			if tt.wantErr {
@@ -427,14 +435,14 @@ func TestMemStorage_updateGaugeByMetrics(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    models.Metrics
+		want    *models.Metrics
 		wantErr bool
 	}{
 		{
 			name:    "test error",
 			fields:  fields{Gauges: map[string]Gauge{"test": 0.01}},
 			args:    args{"test", nil},
-			want:    models.Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
@@ -459,6 +467,7 @@ func TestMemStorage_updateGaugeByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 			got, err := ms.updateGaugeByMetrics(tt.args.id, tt.args.value)
 			if tt.wantErr {
@@ -484,14 +493,14 @@ func TestMemStorage_valueCounter(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    models.Metrics
+		want    *models.Metrics
 		wantErr bool
 	}{
 		{
 			name:    "not found",
 			fields:  fields{Counters: map[string]Counter{"test": 1}},
 			args:    args{"error"},
-			want:    models.Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
@@ -510,6 +519,7 @@ func TestMemStorage_valueCounter(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 			got, err := ms.valueCounterByMetrics(tt.args.id)
 			if tt.wantErr {
@@ -535,14 +545,14 @@ func TestMemStorage_valueGaugeByMetrics(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    models.Metrics
+		want    *models.Metrics
 		wantErr bool
 	}{
 		{
 			name:    "not found",
 			fields:  fields{Gauges: map[string]Gauge{"test": 0.01}},
 			args:    args{"error"},
-			want:    models.Metrics{},
+			want:    nil,
 			wantErr: true,
 		},
 		{
@@ -561,6 +571,7 @@ func TestMemStorage_valueGaugeByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 			got, err := ms.valueGaugeByMetrics(tt.args.id)
 			if tt.wantErr {
@@ -573,27 +584,6 @@ func TestMemStorage_valueGaugeByMetrics(t *testing.T) {
 		})
 	}
 }
-
-// func TestNewMemStorage(t *testing.T) {
-// 	tests := []struct {
-// 		name string
-// 		want *MemStorage
-// 	}{
-// 		{
-// 			name: "test new ms",
-// 			want: &MemStorage{
-// 				Gauges:   gauges{Data: make(map[string]Gauge)},
-// 				Counters: counters{Data: make(map[string]Counter)},
-// 			},
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			got, _ := NewMemStorage(0, "test")
-// 			assert.Equal(t, tt.want, got)
-// 		})
-// 	}
-// }
 
 func TestMemStorage_GetAllGauge(t *testing.T) {
 	type fields struct {
@@ -620,6 +610,7 @@ func TestMemStorage_GetAllGauge(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 			gotRetMap := ms.GetAllGauge()
 			assert.Equal(t, tt.wantRetMap, gotRetMap)
@@ -652,6 +643,7 @@ func TestMemStorage_GetAllCounter(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
+				producer: &file.Producer{},
 			}
 			gotRetMap := ms.GetAllCounter()
 			assert.Equal(t, tt.wantRetMap, gotRetMap)
