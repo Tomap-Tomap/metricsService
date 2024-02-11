@@ -11,6 +11,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -33,8 +34,16 @@ func main() {
 	defer cancel()
 	eg, egCtx := errgroup.WithContext(ctx)
 
+	logger.Log.Info("Connect to database")
+	conn, err := pgx.Connect(egCtx, p.DataBaseDSN)
+
+	if err != nil {
+		logger.Log.Fatal("Connect to database", zap.Error(err))
+	}
+	defer conn.Close(egCtx)
+
 	logger.Log.Info("Create mem storage")
-	ms, err := storage.NewMemStorage(egCtx, eg, producer, p)
+	ms, err := storage.NewMemStorage(egCtx, eg, producer, conn, p)
 	if err != nil {
 		logger.Log.Fatal("Create mem storage", zap.Error(err))
 	}

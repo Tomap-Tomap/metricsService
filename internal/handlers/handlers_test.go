@@ -51,6 +51,12 @@ func (sm *StorageMockedObject) GetAllCounter() map[string]storage.Counter {
 	return args.Get(0).(map[string]storage.Counter)
 }
 
+func (sm *StorageMockedObject) PingDB() error {
+	args := sm.Called()
+
+	return args.Error(0)
+}
+
 func TestServiceHandlers_updateByJSON(t *testing.T) {
 	ms := new(StorageMockedObject)
 	ms.On("UpdateByMetrics", *models.NewMetricsForGauge("test", 1.1)).Return(models.NewMetricsForGauge("test", 1.1), nil)
@@ -487,5 +493,30 @@ func TestServiceHandlers_valueByJSON(t *testing.T) {
 		})
 	}
 
+	ms.AssertExpectations(t)
+}
+
+func TestServiceHandlers_ping(t *testing.T) {
+	ms := new(StorageMockedObject)
+	sh := NewServiceHandlers(ms)
+	r := ServiceRouter(sh)
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	ms.On("PingDB").Return(nil)
+
+	t.Run("test positive", func(t *testing.T) {
+		res := testRequest(t, srv, http.MethodGet, "/ping", "")
+		assert.Equal(t, http.StatusOK, res.StatusCode())
+	})
+	ms.AssertExpectations(t)
+	ms.On("PingDB").Unset()
+	ms.On("PingDB").Return(errors.New("test"))
+
+	t.Run("test negative", func(t *testing.T) {
+		res := testRequest(t, srv, http.MethodGet, "/ping", "")
+		assert.Equal(t, http.StatusInternalServerError, res.StatusCode())
+	})
 	ms.AssertExpectations(t)
 }
