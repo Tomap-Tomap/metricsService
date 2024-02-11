@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -23,10 +24,15 @@ const (
 )
 
 func TestServiceHandlers_updateByJSON(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
 	ms, err := storage.NewMemStorage(
 		context.Background(),
 		&errgroup.Group{},
-		&file.Producer{},
+		producer,
 		parameters.ServerParameters{
 			Restore:       false,
 			StoreInterval: 0,
@@ -122,10 +128,15 @@ func TestServiceHandlers_updateByJSON(t *testing.T) {
 }
 
 func TestServiceHandlers_updateByURL(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
 	ms, err := storage.NewMemStorage(
 		context.Background(),
 		&errgroup.Group{},
-		&file.Producer{},
+		producer,
 		parameters.ServerParameters{
 			Restore:       false,
 			StoreInterval: 0,
@@ -205,10 +216,15 @@ func testRequest(t *testing.T, srv *httptest.Server, method, url string, body st
 }
 
 func TestServiceHandlers_valueByURL(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
 	ms, err := storage.NewMemStorage(
 		context.Background(),
 		&errgroup.Group{},
-		&file.Producer{},
+		producer,
 		parameters.ServerParameters{
 			Restore:       false,
 			StoreInterval: 0,
@@ -287,10 +303,15 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 }
 
 func TestServiceHandlers_all(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
 	ms, err := storage.NewMemStorage(
 		context.Background(),
 		&errgroup.Group{},
-		&file.Producer{},
+		producer,
 		parameters.ServerParameters{
 			Restore:       false,
 			StoreInterval: 0,
@@ -381,10 +402,15 @@ func TestServiceHandlers_all(t *testing.T) {
 }
 
 func TestServiceHandlers_valueByJSON(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
 	ms, err := storage.NewMemStorage(
 		context.Background(),
 		&errgroup.Group{},
-		&file.Producer{},
+		producer,
 		parameters.ServerParameters{
 			Restore:       false,
 			StoreInterval: 0,

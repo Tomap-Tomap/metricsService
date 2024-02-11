@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/DarkOmap/metricsService/internal/file"
@@ -11,6 +12,12 @@ import (
 )
 
 func TestMemStorage_SetGauge(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
+
 	type fields struct {
 		Gauges   map[string]Gauge
 		Counters map[string]Counter
@@ -48,7 +55,7 @@ func TestMemStorage_SetGauge(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
-				producer: &file.Producer{},
+				producer: producer,
 			}
 
 			m.setGauge(tt.args.value, tt.args.name)
@@ -58,6 +65,12 @@ func TestMemStorage_SetGauge(t *testing.T) {
 }
 
 func TestMemStorage_AddCounter(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
+
 	type fields struct {
 		Gauges   map[string]Gauge
 		Counters map[string]Counter
@@ -95,7 +108,7 @@ func TestMemStorage_AddCounter(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
-				producer: &file.Producer{},
+				producer: producer,
 			}
 
 			m.addCounter(tt.args.value, tt.args.name)
@@ -203,6 +216,12 @@ func TestMemStorage_GetCounter(t *testing.T) {
 }
 
 func TestMemStorage_UpdateByMetrics(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
+
 	type fields struct {
 		Gauges   map[string]Gauge
 		Counters map[string]Counter
@@ -263,7 +282,7 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
-				producer: &file.Producer{},
+				producer: producer,
 			}
 			got, err := ms.UpdateByMetrics(*tt.args.m)
 			if tt.wantErr {
@@ -356,6 +375,12 @@ func TestMemStorage_ValueByMetrics(t *testing.T) {
 }
 
 func TestMemStorage_updateCounterByMetrics(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
+
 	var (
 		testCounter1 Counter = 1
 		testCounter2 Counter = 2
@@ -404,7 +429,7 @@ func TestMemStorage_updateCounterByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
-				producer: &file.Producer{},
+				producer: producer,
 			}
 			got, err := ms.updateCounterByMetrics(tt.args.id, tt.args.delta)
 			if tt.wantErr {
@@ -419,6 +444,11 @@ func TestMemStorage_updateCounterByMetrics(t *testing.T) {
 }
 
 func TestMemStorage_updateGaugeByMetrics(t *testing.T) {
+	defer os.Remove("./test")
+	producer, err := file.NewProducer("./test")
+
+	require.NoError(t, err)
+	defer producer.Close()
 	var (
 		testGauge1 Gauge = 1.1
 		testGauge2 Gauge = 0
@@ -467,7 +497,7 @@ func TestMemStorage_updateGaugeByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
-				producer: &file.Producer{},
+				producer: producer,
 			}
 			got, err := ms.updateGaugeByMetrics(tt.args.id, tt.args.value)
 			if tt.wantErr {

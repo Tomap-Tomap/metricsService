@@ -14,6 +14,7 @@ type (
 		wroteHeader bool
 		code        int
 		bytes       int
+		error       string
 	}
 )
 
@@ -21,6 +22,11 @@ func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	if !r.wroteHeader {
 		r.WriteHeader(http.StatusOK)
 	}
+
+	if r.code != http.StatusOK {
+		r.error = string(b)
+	}
+
 	size, err := r.ResponseWriter.Write(b)
 	r.bytes += size
 	return size, err
@@ -61,6 +67,11 @@ func RequestLogger(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
+		Log.Info("Got incoming HTTP request",
+			zap.String("uri", r.RequestURI),
+			zap.String("method", r.Method),
+		)
+
 		lw := loggingResponseWriter{
 			ResponseWriter: w,
 		}
@@ -68,12 +79,11 @@ func RequestLogger(h http.Handler) http.Handler {
 		defer func() {
 			duration := time.Since(start)
 
-			Log.Info("got incoming HTTP request",
-				zap.String("uri", r.RequestURI),
-				zap.String("method", r.Method),
+			Log.Info("Sending HTTP response",
 				zap.String("duration", duration.String()),
 				zap.Int("status", lw.code),
 				zap.Int("size", lw.bytes),
+				zap.String("error", lw.error),
 			)
 		}()
 
@@ -81,20 +91,4 @@ func RequestLogger(h http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(logFn)
-}
-
-func LogBadRequest(handlerName, uri string, err error) {
-	Log.Info("Got incorrect request",
-		zap.String("handler", handlerName),
-		zap.String("uri", uri),
-		zap.Error(err),
-	)
-}
-
-func LogNotFound(handlerName, uri string, err error) {
-	Log.Info("Value not found",
-		zap.String("handler", handlerName),
-		zap.String("uri", uri),
-		zap.Error(err),
-	)
 }

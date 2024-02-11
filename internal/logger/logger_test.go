@@ -190,8 +190,8 @@ func TestRequestLogger(t *testing.T) {
 			name: "test",
 			args: args{
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})},
-			want: []string{`"level":"info"`, `"ts":`, `"caller":`, `"msg":"got incoming HTTP request"`,
-				`"uri":"/"`, `"method":"GET"`, `"duration":`, `"status":0`, `"size":0`},
+			want: []string{`"level":"info"`, `"ts":`, `"caller":`, `"msg":"Sending HTTP response"`,
+				`"duration":`, `"status":0`, `"size":0`},
 		},
 	}
 	for _, tt := range tests {

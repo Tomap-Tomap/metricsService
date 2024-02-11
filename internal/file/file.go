@@ -30,6 +30,10 @@ func (p *Producer) Seek() error {
 	return err
 }
 
+func (p *Producer) ClearFile() error {
+	return p.file.Truncate(0)
+}
+
 func (p *Producer) Close() error {
 	return p.file.Close()
 }
@@ -37,9 +41,6 @@ func (p *Producer) Close() error {
 func (p *Producer) WriteInFile(value any) error {
 	p.m.Lock()
 	defer p.m.Unlock()
-	if err := p.Seek(); err != nil {
-		return fmt.Errorf("seek file: %w", err)
-	}
 
 	if err := p.Encoder.Encode(value); err != nil {
 		return fmt.Errorf("encode value in file: %w", err)

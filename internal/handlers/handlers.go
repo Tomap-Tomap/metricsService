@@ -13,7 +13,6 @@ import (
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-chi/chi/v5"
-	"go.uber.org/zap"
 )
 
 type repository interface {
@@ -34,7 +33,6 @@ func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) 
 	m, err := getModelsByJSON(r.Body)
 
 	if err != nil {
-		logger.LogBadRequest("updateByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -42,7 +40,6 @@ func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) 
 	m, err = sh.ms.UpdateByMetrics(*m)
 
 	if err != nil {
-		logger.LogBadRequest("updateByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -50,7 +47,6 @@ func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) 
 	resp, err := json.Marshal(m)
 
 	if err != nil {
-		logger.LogBadRequest("updateByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -70,7 +66,6 @@ func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		logger.LogBadRequest("updateByURL", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -78,7 +73,6 @@ func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
 	_, err = sh.ms.UpdateByMetrics(*m)
 
 	if err != nil {
-		logger.LogBadRequest("updateByURL", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -93,7 +87,6 @@ func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
 	m, err := getModelsByJSON(r.Body)
 
 	if err != nil {
-		logger.LogBadRequest("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -101,7 +94,6 @@ func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
 	m, err = sh.ms.ValueByMetrics(*m)
 
 	if err != nil {
-		logger.LogNotFound("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -109,7 +101,6 @@ func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
 	resp, err := json.Marshal(m)
 
 	if err != nil {
-		logger.LogBadRequest("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -128,7 +119,6 @@ func (sh *ServiceHandlers) valueByURL(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		logger.LogNotFound("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -136,7 +126,6 @@ func (sh *ServiceHandlers) valueByURL(w http.ResponseWriter, r *http.Request) {
 	m, err = sh.ms.ValueByMetrics(*m)
 
 	if err != nil {
-		logger.LogNotFound("valueByJSON", r.RequestURI, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -189,11 +178,6 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 	t, err := t.Parse(tmpl)
 
 	if err != nil {
-		logger.Log.Info("HTML parse",
-			zap.String("handler", "all"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -207,11 +191,6 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 	err = t.Execute(w, result)
 
 	if err != nil {
-		logger.Log.Info("HTML execute",
-			zap.String("handler", "all"),
-			zap.String("uri", r.RequestURI),
-			zap.Error(err),
-		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -241,8 +220,8 @@ func NewServiceHandlers(ms repository) ServiceHandlers {
 
 func ServiceRouter(sh ServiceHandlers) chi.Router {
 	r := chi.NewRouter()
-	r.Use(logger.RequestLogger)
 	r.Use(compresses.CompressHandle)
+	r.Use(logger.RequestLogger)
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", sh.all)

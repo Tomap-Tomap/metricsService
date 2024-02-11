@@ -53,9 +53,24 @@ func NewMemStorage(ctx context.Context, eg *errgroup.Group, producer *file.Produ
 		}
 		defer consumer.Close()
 
-		if err := consumer.Decoder.Decode(&ms); err != nil && err != io.EOF {
-			return nil, fmt.Errorf("read from file for storage: %w", err)
+		m := &models.Metrics{}
+
+		for err := consumer.Decoder.Decode(m); err != io.EOF; err = consumer.Decoder.Decode(m) {
+			if err != nil && err != io.EOF {
+				return nil, fmt.Errorf("read from file for storage: %w", err)
+			}
+
+			if m.MType == "counter" {
+				ms.Counters.Data[m.ID] = Counter(*m.Delta)
+				continue
+			}
+			_, err := ms.UpdateByMetrics(*m)
+
+			if err != nil {
+				return nil, fmt.Errorf("read from file for storage: %w", err)
+			}
 		}
+		ms.producer.ClearFile()
 	}
 
 	if p.StoreInterval != 0 {
@@ -70,15 +85,11 @@ func (ms *MemStorage) runDumping(ctx context.Context, eg *errgroup.Group) {
 		for {
 			select {
 			case <-time.After(time.Duration(ms.storeInterval) * time.Second):
-				err := ms.producer.WriteInFile(ms)
-
-				if err != nil {
+				if err := ms.dumpStorage(); err != nil {
 					return fmt.Errorf("dump by interval: %w", err)
 				}
 			case <-ctx.Done():
-				err := ms.producer.WriteInFile(ms)
-
-				if err != nil {
+				if err := ms.dumpStorage(); err != nil {
 					return fmt.Errorf("dump by stop: %w", err)
 				}
 				logger.Log.Info("Stop sync")
@@ -86,6 +97,29 @@ func (ms *MemStorage) runDumping(ctx context.Context, eg *errgroup.Group) {
 			}
 		}
 	})
+}
+
+func (ms *MemStorage) dumpStorage() error {
+	allGauges := ms.GetAllGauge()
+	for idx, val := range allGauges {
+		m := models.NewMetricsForGauge(idx, float64(val))
+		err := ms.producer.WriteInFile(m)
+
+		if err != nil {
+			return fmt.Errorf("write in file: %w", err)
+		}
+	}
+
+	allCouters := ms.GetAllCounter()
+	for idx, val := range allCouters {
+		m := models.NewMetricsForCounter(idx, int64(val))
+		err := ms.producer.WriteInFile(m)
+
+		if err != nil {
+			return fmt.Errorf("write in file: %w", err)
+		}
+	}
+	return nil
 }
 
 func (ms *MemStorage) UpdateByMetrics(m models.Metrics) (*models.Metrics, error) {
@@ -157,7 +191,8 @@ func (ms *MemStorage) setGauge(g Gauge, name string) Gauge {
 	retV := ms.Gauges.Data[name]
 
 	if ms.storeInterval == 0 {
-		ms.producer.WriteInFile(ms)
+		m := models.NewMetricsForGauge(name, float64(g))
+		ms.producer.WriteInFile(m)
 	}
 
 	return retV
@@ -177,12 +212,13 @@ func (ms *MemStorage) getGauge(name string) (Gauge, error) {
 
 func (ms *MemStorage) addCounter(c Counter, name string) Counter {
 	ms.Counters.Lock()
+	defer ms.Counters.Unlock()
 	ms.Counters.Data[name] += c
 	retC := ms.Counters.Data[name]
-	ms.Counters.Unlock()
 
 	if ms.storeInterval == 0 {
-		ms.producer.WriteInFile(ms)
+		m := models.NewMetricsForCounter(name, int64(retC))
+		ms.producer.WriteInFile(m)
 	}
 
 	return retC
