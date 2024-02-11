@@ -1,21 +1,18 @@
 package handlers
 
 import (
-	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
-	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/models"
-	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -23,21 +20,41 @@ const (
 	jsonCT = "application/json; charset=utf-8"
 )
 
-func TestServiceHandlers_updateByJSON(t *testing.T) {
-	defer os.Remove("./test")
-	producer, err := file.NewProducer("./test")
+type StorageMockedObject struct {
+	mock.Mock
+}
 
-	require.NoError(t, err)
-	defer producer.Close()
-	ms, err := storage.NewMemStorage(
-		context.Background(),
-		&errgroup.Group{},
-		producer,
-		parameters.ServerParameters{
-			Restore:       false,
-			StoreInterval: 0,
-		})
-	require.NoError(t, err)
+func (sm *StorageMockedObject) UpdateByMetrics(m models.Metrics) (*models.Metrics, error) {
+	args := sm.Called(m)
+
+	return args.Get(0).(*models.Metrics), args.Error(1)
+}
+
+func (sm *StorageMockedObject) ValueByMetrics(m models.Metrics) (*models.Metrics, error) {
+	args := sm.Called(m)
+
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Metrics), args.Error(1)
+}
+
+func (sm *StorageMockedObject) GetAllGauge() map[string]storage.Gauge {
+	args := sm.Called()
+
+	return args.Get(0).(map[string]storage.Gauge)
+}
+
+func (sm *StorageMockedObject) GetAllCounter() map[string]storage.Counter {
+	args := sm.Called()
+
+	return args.Get(0).(map[string]storage.Counter)
+}
+
+func TestServiceHandlers_updateByJSON(t *testing.T) {
+	ms := new(StorageMockedObject)
+	ms.On("UpdateByMetrics", *models.NewMetricsForGauge("test", 1.1)).Return(models.NewMetricsForGauge("test", 1.1), nil)
+	ms.On("UpdateByMetrics", *models.NewMetricsForCounter("test", 1)).Return(models.NewMetricsForCounter("test", 1), nil)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
@@ -125,23 +142,14 @@ func TestServiceHandlers_updateByJSON(t *testing.T) {
 			}
 		})
 	}
+
+	ms.AssertExpectations(t)
 }
 
 func TestServiceHandlers_updateByURL(t *testing.T) {
-	defer os.Remove("./test")
-	producer, err := file.NewProducer("./test")
-
-	require.NoError(t, err)
-	defer producer.Close()
-	ms, err := storage.NewMemStorage(
-		context.Background(),
-		&errgroup.Group{},
-		producer,
-		parameters.ServerParameters{
-			Restore:       false,
-			StoreInterval: 0,
-		})
-	require.NoError(t, err)
+	ms := new(StorageMockedObject)
+	ms.On("UpdateByMetrics", *models.NewMetricsForGauge("test", 12)).Return(models.NewMetricsForGauge("test", 12), nil)
+	ms.On("UpdateByMetrics", *models.NewMetricsForCounter("test", 12)).Return(models.NewMetricsForCounter("test", 12), nil)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
@@ -202,6 +210,8 @@ func TestServiceHandlers_updateByURL(t *testing.T) {
 			assert.Equal(t, tt.want.contentType, strings.Join(res.Header().Values("Content-Type"), "; "))
 		})
 	}
+
+	ms.AssertExpectations(t)
 }
 
 func testRequest(t *testing.T, srv *httptest.Server, method, url string, body string) *resty.Response {
@@ -216,28 +226,25 @@ func testRequest(t *testing.T, srv *httptest.Server, method, url string, body st
 }
 
 func TestServiceHandlers_valueByURL(t *testing.T) {
-	defer os.Remove("./test")
-	producer, err := file.NewProducer("./test")
+	ms := new(StorageMockedObject)
 
+	testWrong, err := models.NewMetrics("wrong", "counter")
 	require.NoError(t, err)
-	defer producer.Close()
-	ms, err := storage.NewMemStorage(
-		context.Background(),
-		&errgroup.Group{},
-		producer,
-		parameters.ServerParameters{
-			Restore:       false,
-			StoreInterval: 0,
-		})
+	ms.On("ValueByMetrics", *testWrong).Return(nil, errors.New("unknown type wrong"))
+
+	testGauge, err := models.NewMetrics("test", "gauge")
 	require.NoError(t, err)
+	ms.On("ValueByMetrics", *testGauge).Return(models.NewMetricsForGauge("test", 1.1), nil)
+
+	testCounter, err := models.NewMetrics("test", "counter")
+	require.NoError(t, err)
+	ms.On("ValueByMetrics", *testCounter).Return(models.NewMetricsForCounter("test", 1), nil)
+
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
-
-	sh.ms.UpdateByMetrics(*models.NewMetricsForGauge("test", 1.1))
-	sh.ms.UpdateByMetrics(*models.NewMetricsForCounter("test", 1))
 
 	type want struct {
 		code        int
@@ -300,31 +307,19 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 			assert.Equal(t, tt.want.value, res.String())
 		})
 	}
+
+	ms.AssertExpectations(t)
 }
 
 func TestServiceHandlers_all(t *testing.T) {
-	defer os.Remove("./test")
-	producer, err := file.NewProducer("./test")
-
-	require.NoError(t, err)
-	defer producer.Close()
-	ms, err := storage.NewMemStorage(
-		context.Background(),
-		&errgroup.Group{},
-		producer,
-		parameters.ServerParameters{
-			Restore:       false,
-			StoreInterval: 0,
-		})
-	require.NoError(t, err)
+	ms := new(StorageMockedObject)
+	ms.On("GetAllGauge").Return(map[string]storage.Gauge{"test": 1.1})
+	ms.On("GetAllCounter").Return(map[string]storage.Counter{"test": 1})
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
-
-	sh.ms.UpdateByMetrics(*models.NewMetricsForGauge("test", 1.1))
-	sh.ms.UpdateByMetrics(*models.NewMetricsForCounter("test", 1))
 
 	htmlText := `<!DOCTYPE html>
 	<html>
@@ -372,11 +367,6 @@ func TestServiceHandlers_all(t *testing.T) {
 			want:  want{code: http.StatusMethodNotAllowed},
 		},
 		{
-			name:  "wrong name",
-			param: param{http.MethodGet, "/value/counter/wrong"},
-			want:  want{code: http.StatusNotFound, contentType: textCT},
-		},
-		{
 			name:  "positive",
 			param: param{http.MethodGet, "/"},
 			want:  want{http.StatusOK, "text/html; charset=utf-8", htmlText},
@@ -399,31 +389,34 @@ func TestServiceHandlers_all(t *testing.T) {
 			assert.Equal(t, strings.ReplaceAll(strings.ReplaceAll(tt.want.value, "\t", ""), "\n", ""), strings.ReplaceAll(strings.ReplaceAll(res.String(), "\t", ""), "\n", ""))
 		})
 	}
+
+	ms.AssertExpectations(t)
 }
 
 func TestServiceHandlers_valueByJSON(t *testing.T) {
-	defer os.Remove("./test")
-	producer, err := file.NewProducer("./test")
+	ms := new(StorageMockedObject)
 
+	testCounterNotFound, err := models.NewMetrics("notFound", "counter")
 	require.NoError(t, err)
-	defer producer.Close()
-	ms, err := storage.NewMemStorage(
-		context.Background(),
-		&errgroup.Group{},
-		producer,
-		parameters.ServerParameters{
-			Restore:       false,
-			StoreInterval: 0,
-		})
+	ms.On("ValueByMetrics", *testCounterNotFound).Return(nil, errors.New("error"))
+
+	testGaugeNotFound, err := models.NewMetrics("notFound", "gauge")
 	require.NoError(t, err)
+	ms.On("ValueByMetrics", *testGaugeNotFound).Return(nil, errors.New("error"))
+
+	testGauge, err := models.NewMetrics("test", "gauge")
+	require.NoError(t, err)
+	ms.On("ValueByMetrics", *testGauge).Return(models.NewMetricsForGauge("test", 1.1), nil)
+
+	testCounter, err := models.NewMetrics("test", "counter")
+	require.NoError(t, err)
+	ms.On("ValueByMetrics", *testCounter).Return(models.NewMetricsForCounter("test", 1), nil)
+
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
-
-	sh.ms.UpdateByMetrics(*models.NewMetricsForGauge("test", 1.1))
-	sh.ms.UpdateByMetrics(*models.NewMetricsForCounter("test", 1))
 
 	type want struct {
 		code              int
@@ -493,4 +486,6 @@ func TestServiceHandlers_valueByJSON(t *testing.T) {
 			}
 		})
 	}
+
+	ms.AssertExpectations(t)
 }
