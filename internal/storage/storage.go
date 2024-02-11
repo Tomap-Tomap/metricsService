@@ -254,6 +254,10 @@ func (ms *MemStorage) GetAllCounter() (retMap map[string]Counter) {
 }
 
 func (ms *MemStorage) PingDB() error {
+	if ms.conn == nil {
+		return fmt.Errorf("database is not connect")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return ms.conn.Ping(ctx)

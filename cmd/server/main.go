@@ -38,7 +38,7 @@ func main() {
 	conn, err := pgx.Connect(egCtx, p.DataBaseDSN)
 
 	if err != nil {
-		logger.Log.Fatal("Connect to database", zap.Error(err))
+		logger.Log.Warn("Connect to database", zap.Error(err))
 	}
 	defer conn.Close(egCtx)
 
