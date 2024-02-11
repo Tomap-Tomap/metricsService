@@ -1,11 +1,19 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
-	"strconv"
 	"sync"
+	"time"
+
+	"github.com/DarkOmap/metricsService/internal/file"
+	"github.com/DarkOmap/metricsService/internal/logger"
+	"github.com/DarkOmap/metricsService/internal/models"
+	"github.com/DarkOmap/metricsService/internal/parameters"
+	"golang.org/x/sync/errgroup"
 )
 
 type Gauge float64
@@ -13,45 +21,187 @@ type Counter int64
 
 type gauges struct {
 	sync.RWMutex
-	data map[string]Gauge
+	Data map[string]Gauge `json:"data"`
 }
 
 type counters struct {
 	sync.RWMutex
-	data map[string]Counter
+	Data map[string]Counter `json:"data"`
 }
 
 type MemStorage struct {
-	gauges   gauges
-	counters counters
+	Gauges          gauges   `json:"gauges"`
+	Counters        counters `json:"counters"`
+	fileStoragePath string
+	storeInterval   uint
+	producer        *file.Producer
 }
 
-func NewMemStorage() *MemStorage {
+func NewMemStorage(ctx context.Context, eg *errgroup.Group, producer *file.Producer, p parameters.ServerParameters) (*MemStorage, error) {
 	ms := MemStorage{}
-	ms.counters.data = make(map[string]Counter)
-	ms.gauges.data = make(map[string]Gauge)
+	ms.Counters.Data = make(map[string]Counter)
+	ms.Gauges.Data = make(map[string]Gauge)
+	ms.fileStoragePath = p.FileStoragePath
+	ms.storeInterval = p.StoreInterval
+	ms.producer = producer
 
-	return &ms
-}
+	if p.Restore {
+		consumer, err := file.NewConsumer(p.FileStoragePath)
 
-func (ms *MemStorage) SetGauge(value string, name string) error {
-	g, err := parseGauge(value)
+		if err != nil {
+			return nil, fmt.Errorf("initializing new consumer: %w", err)
+		}
+		defer consumer.Close()
 
-	if err != nil {
-		return fmt.Errorf("set gauge %s: %w", value, err)
+		m := &models.Metrics{}
+
+		for err := consumer.Decoder.Decode(m); err != io.EOF; err = consumer.Decoder.Decode(m) {
+			if err != nil && err != io.EOF {
+				return nil, fmt.Errorf("read from file for storage: %w", err)
+			}
+
+			if m.MType == "counter" {
+				ms.Counters.Data[m.ID] = Counter(*m.Delta)
+				continue
+			}
+			_, err := ms.UpdateByMetrics(*m)
+
+			if err != nil {
+				return nil, fmt.Errorf("read from file for storage: %w", err)
+			}
+		}
+		ms.producer.ClearFile()
 	}
 
-	ms.gauges.Lock()
-	ms.gauges.data[name] = g
-	ms.gauges.Unlock()
+	if p.StoreInterval != 0 {
+		ms.runDumping(ctx, eg)
+	}
 
+	return &ms, nil
+}
+
+func (ms *MemStorage) runDumping(ctx context.Context, eg *errgroup.Group) {
+	eg.Go(func() error {
+		for {
+			select {
+			case <-time.After(time.Duration(ms.storeInterval) * time.Second):
+				if err := ms.dumpStorage(); err != nil {
+					return fmt.Errorf("dump by interval: %w", err)
+				}
+			case <-ctx.Done():
+				if err := ms.dumpStorage(); err != nil {
+					return fmt.Errorf("dump by stop: %w", err)
+				}
+				logger.Log.Info("Stop sync")
+				return nil
+			}
+		}
+	})
+}
+
+func (ms *MemStorage) dumpStorage() error {
+	allGauges := ms.GetAllGauge()
+	for idx, val := range allGauges {
+		m := models.NewMetricsForGauge(idx, float64(val))
+		err := ms.producer.WriteInFile(m)
+
+		if err != nil {
+			return fmt.Errorf("write in file: %w", err)
+		}
+	}
+
+	allCouters := ms.GetAllCounter()
+	for idx, val := range allCouters {
+		m := models.NewMetricsForCounter(idx, int64(val))
+		err := ms.producer.WriteInFile(m)
+
+		if err != nil {
+			return fmt.Errorf("write in file: %w", err)
+		}
+	}
 	return nil
 }
 
-func (ms *MemStorage) GetGauge(name string) (Gauge, error) {
-	ms.gauges.RLock()
-	v, ok := ms.gauges.data[name]
-	ms.gauges.RUnlock()
+func (ms *MemStorage) UpdateByMetrics(m models.Metrics) (*models.Metrics, error) {
+	switch m.MType {
+	case "counter":
+		return ms.updateCounterByMetrics(m.ID, (*Counter)(m.Delta))
+	case "gauge":
+		return ms.updateGaugeByMetrics(m.ID, (*Gauge)(m.Value))
+	default:
+		return nil, fmt.Errorf("unknown type %s", m.MType)
+	}
+}
+
+func (ms *MemStorage) updateCounterByMetrics(id string, delta *Counter) (*models.Metrics, error) {
+	if delta == nil {
+		return nil, fmt.Errorf("delta is empty")
+	}
+
+	newDelta := int64(ms.addCounter(*delta, id))
+
+	return models.NewMetricsForCounter(id, newDelta), nil
+}
+
+func (ms *MemStorage) updateGaugeByMetrics(id string, value *Gauge) (*models.Metrics, error) {
+	if value == nil {
+		return nil, fmt.Errorf("value is empty")
+	}
+
+	newValue := float64(ms.setGauge(*value, id))
+
+	return models.NewMetricsForGauge(id, newValue), nil
+}
+
+func (ms *MemStorage) ValueByMetrics(m models.Metrics) (*models.Metrics, error) {
+	switch m.MType {
+	case "counter":
+		return ms.valueCounterByMetrics(m.ID)
+	case "gauge":
+		return ms.valueGaugeByMetrics(m.ID)
+	default:
+		return nil, fmt.Errorf("unknown type %s", m.MType)
+	}
+}
+
+func (ms *MemStorage) valueCounterByMetrics(id string) (*models.Metrics, error) {
+	c, err := ms.getCounter(id)
+
+	if err != nil {
+		return nil, fmt.Errorf("get counter %s: %w", id, err)
+	}
+
+	return models.NewMetricsForCounter(id, int64(c)), nil
+}
+
+func (ms *MemStorage) valueGaugeByMetrics(id string) (*models.Metrics, error) {
+	g, err := ms.getGauge(id)
+
+	if err != nil {
+		return nil, fmt.Errorf("get gauge %s: %w", id, err)
+	}
+
+	return models.NewMetricsForGauge(id, float64(g)), nil
+}
+
+func (ms *MemStorage) setGauge(g Gauge, name string) Gauge {
+	ms.Gauges.Lock()
+	defer ms.Gauges.Unlock()
+	ms.Gauges.Data[name] = g
+	retV := ms.Gauges.Data[name]
+
+	if ms.storeInterval == 0 {
+		m := models.NewMetricsForGauge(name, float64(g))
+		ms.producer.WriteInFile(m)
+	}
+
+	return retV
+}
+
+func (ms *MemStorage) getGauge(name string) (Gauge, error) {
+	ms.Gauges.RLock()
+	v, ok := ms.Gauges.Data[name]
+	ms.Gauges.RUnlock()
 
 	if !ok {
 		return v, errors.New("value not found")
@@ -60,24 +210,24 @@ func (ms *MemStorage) GetGauge(name string) (Gauge, error) {
 	return v, nil
 }
 
-func (ms *MemStorage) AddCounter(value string, name string) error {
-	c, err := parseCounter(value)
+func (ms *MemStorage) addCounter(c Counter, name string) Counter {
+	ms.Counters.Lock()
+	defer ms.Counters.Unlock()
+	ms.Counters.Data[name] += c
+	retC := ms.Counters.Data[name]
 
-	if err != nil {
-		return fmt.Errorf("add counter %s: %w", value, err)
+	if ms.storeInterval == 0 {
+		m := models.NewMetricsForCounter(name, int64(retC))
+		ms.producer.WriteInFile(m)
 	}
 
-	ms.counters.Lock()
-	ms.counters.data[name] += c
-	ms.counters.Unlock()
-
-	return nil
+	return retC
 }
 
-func (ms *MemStorage) GetCounter(name string) (Counter, error) {
-	ms.counters.RLock()
-	v, ok := ms.counters.data[name]
-	ms.counters.RUnlock()
+func (ms *MemStorage) getCounter(name string) (Counter, error) {
+	ms.Counters.RLock()
+	v, ok := ms.Counters.Data[name]
+	ms.Counters.RUnlock()
 
 	if !ok {
 		return v, errors.New("value not found")
@@ -87,27 +237,15 @@ func (ms *MemStorage) GetCounter(name string) (Counter, error) {
 }
 
 func (ms *MemStorage) GetAllGauge() (retMap map[string]Gauge) {
-	ms.gauges.RLock()
-	retMap = maps.Clone(ms.gauges.data)
-	ms.gauges.RUnlock()
+	ms.Gauges.RLock()
+	retMap = maps.Clone(ms.Gauges.Data)
+	ms.Gauges.RUnlock()
 	return
 }
 
 func (ms *MemStorage) GetAllCounter() (retMap map[string]Counter) {
-	ms.counters.RLock()
-	retMap = maps.Clone(ms.counters.data)
-	ms.counters.RUnlock()
+	ms.Counters.RLock()
+	retMap = maps.Clone(ms.Counters.Data)
+	ms.Counters.RUnlock()
 	return
-}
-
-func parseGauge(g string) (Gauge, error) {
-	v, err := strconv.ParseFloat(g, 64)
-
-	return Gauge(v), err
-}
-
-func parseCounter(c string) (Counter, error) {
-	v, err := strconv.ParseInt(c, 10, 64)
-
-	return Counter(v), err
 }

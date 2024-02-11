@@ -1,20 +1,23 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
-	"strings"
 
+	"github.com/DarkOmap/metricsService/internal/compresses"
+	"github.com/DarkOmap/metricsService/internal/logger"
+	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-chi/chi/v5"
 )
 
 type repository interface {
-	SetGauge(value string, name string) error
-	GetGauge(name string) (storage.Gauge, error)
-	AddCounter(value string, name string) error
-	GetCounter(name string) (storage.Counter, error)
+	UpdateByMetrics(m models.Metrics) (*models.Metrics, error)
+	ValueByMetrics(m models.Metrics) (*models.Metrics, error)
 	GetAllGauge() map[string]storage.Gauge
 	GetAllCounter() map[string]storage.Counter
 }
@@ -23,62 +26,120 @@ type ServiceHandlers struct {
 	ms repository
 }
 
-func (sh *ServiceHandlers) updateCounter(res http.ResponseWriter, req *http.Request) {
-	res.Header().Add("Content-Type", "text/plain")
-	res.Header().Add("Content-Type", "charset=utf-8")
+func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Content-Type", "charset=utf-8")
 
-	t := strings.ToLower(chi.URLParam(req, "type"))
-	v, n := chi.URLParam(req, "value"), chi.URLParam(req, "name")
-	switch t {
-	case "counter":
-		err := sh.ms.AddCounter(v, n)
+	m, err := getModelsByJSON(r.Body)
 
-		if err != nil {
-			http.Error(res, err.Error(), http.StatusBadRequest)
-			return
-		}
-	case "gauge":
-		err := sh.ms.SetGauge(v, n)
-
-		if err != nil {
-			http.Error(res, err.Error(), http.StatusBadRequest)
-			return
-		}
-	default:
-		http.Error(res, "unknown type", http.StatusBadRequest)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
+
+	m, err = sh.ms.UpdateByMetrics(*m)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	resp, err := json.Marshal(m)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
 }
 
-func (sh *ServiceHandlers) value(res http.ResponseWriter, req *http.Request) {
-	res.Header().Add("Content-Type", "text/plain")
-	res.Header().Add("Content-Type", "charset=utf-8")
+func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "charset=utf-8")
 
-	t := strings.ToLower(chi.URLParam(req, "type"))
+	m, err := models.NewModelByStrings(
+		chi.URLParam(r, "name"),
+		chi.URLParam(r, "type"),
+		chi.URLParam(r, "value"),
+	)
 
-	switch t {
-	case "counter":
-		v, err := sh.ms.GetCounter(chi.URLParam(req, "name"))
-
-		if err != nil {
-			http.Error(res, err.Error(), http.StatusNotFound)
-			return
-		}
-
-		fmt.Fprint(res, v)
-	case "gauge":
-		v, err := sh.ms.GetGauge(chi.URLParam(req, "name"))
-
-		if err != nil {
-			http.Error(res, err.Error(), http.StatusNotFound)
-			return
-		}
-		fmt.Fprint(res, v)
-	default:
-		http.Error(res, "unknown type", http.StatusNotFound)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
+
+	_, err = sh.ms.UpdateByMetrics(*m)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
-func (sh *ServiceHandlers) all(res http.ResponseWriter, req *http.Request) {
+func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Content-Type", "charset=utf-8")
+
+	m, err := getModelsByJSON(r.Body)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	m, err = sh.ms.ValueByMetrics(*m)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	resp, err := json.Marshal(m)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
+}
+
+func (sh *ServiceHandlers) valueByURL(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "charset=utf-8")
+
+	m, err := models.NewMetrics(
+		chi.URLParam(r, "name"),
+		chi.URLParam(r, "type"),
+	)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	m, err = sh.ms.ValueByMetrics(*m)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	if m.Delta != nil {
+		fmt.Fprint(w, *m.Delta)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, *m.Value)
+}
+
+func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 	tmpl := `<!DOCTYPE html>
 	<html>
 	
@@ -110,14 +171,14 @@ func (sh *ServiceHandlers) all(res http.ResponseWriter, req *http.Request) {
 	
 	</html>`
 
-	res.Header().Add("Content-Type", "text/html")
-	res.Header().Add("Content-Type", "charset=utf-8")
+	w.Header().Add("Content-Type", "text/html")
+	w.Header().Add("Content-Type", "charset=utf-8")
 
 	t := template.New("all tmpl")
 	t, err := t.Parse(tmpl)
 
 	if err != nil {
-		http.Error(res, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -127,12 +188,30 @@ func (sh *ServiceHandlers) all(res http.ResponseWriter, req *http.Request) {
 	}
 
 	result := resultTable{sh.ms.GetAllCounter(), sh.ms.GetAllGauge()}
-	err = t.Execute(res, result)
+	err = t.Execute(w, result)
 
 	if err != nil {
-		http.Error(res, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
+	var buf bytes.Buffer
+	_, err := buf.ReadFrom(body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := models.NewModelsByJSON(buf.Bytes())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return m, err
 }
 
 func NewServiceHandlers(ms repository) ServiceHandlers {
@@ -141,14 +220,18 @@ func NewServiceHandlers(ms repository) ServiceHandlers {
 
 func ServiceRouter(sh ServiceHandlers) chi.Router {
 	r := chi.NewRouter()
+	r.Use(compresses.CompressHandle)
+	r.Use(logger.RequestLogger)
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", sh.all)
 		r.Route("/update", func(r chi.Router) {
-			r.Post("/{type}/{name}/{value}", sh.updateCounter)
+			r.Post("/", sh.updateByJSON)
+			r.Post("/{type}/{name}/{value}", sh.updateByURL)
 		})
 		r.Route("/value", func(r chi.Router) {
-			r.Get("/{type}/{name}", sh.value)
+			r.Post("/", sh.valueByJSON)
+			r.Get("/{type}/{name}", sh.valueByURL)
 		})
 	})
 

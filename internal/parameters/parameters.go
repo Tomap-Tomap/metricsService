@@ -11,10 +11,6 @@ type AgentParameters struct {
 	ReportInterval, PollInterval uint
 }
 
-type ServerParameters struct {
-	FlagRunAddr string
-}
-
 func ParseFlagsAgent() (p AgentParameters) {
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
@@ -45,13 +41,38 @@ func ParseFlagsAgent() (p AgentParameters) {
 	return
 }
 
+type ServerParameters struct {
+	FlagRunAddr, FileStoragePath string
+	StoreInterval                uint
+	Restore                      bool
+}
+
 func ParseFlagsServer() (p ServerParameters) {
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
+	f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
+	f.UintVar(&p.StoreInterval, "i", 300, "interval in seconds for save storage")
+	f.BoolVar(&p.Restore, "r", true, "flag for upload storage from file")
 	f.Parse(os.Args[1:])
 
 	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
 		p.FlagRunAddr = envAddr
+	}
+
+	if envSP := os.Getenv("FILE_STORAGE_PATH"); envSP != "" {
+		p.FileStoragePath = envSP
+	}
+
+	if envSI := os.Getenv("STORE_INTERVAL"); envSI != "" {
+		if unitSI, err := strconv.ParseUint(envSI, 10, 32); err == nil {
+			p.StoreInterval = uint(unitSI)
+		}
+	}
+
+	if envR := os.Getenv("RESTORE"); envR != "" {
+		if boolR, err := strconv.ParseBool(envR); err == nil {
+			p.Restore = boolR
+		}
 	}
 
 	return
