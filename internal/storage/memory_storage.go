@@ -16,9 +16,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type Gauge float64
-type Counter int64
-
 type gauges struct {
 	sync.RWMutex
 	Data map[string]Gauge `json:"data"`
@@ -248,4 +245,8 @@ func (ms *MemStorage) GetAllCounter() (retMap map[string]Counter) {
 	retMap = maps.Clone(ms.Counters.Data)
 	ms.Counters.RUnlock()
 	return
+}
+
+func (ms *MemStorage) PingDB() error {
+	return fmt.Errorf("for this storage type database is not supported")
 }

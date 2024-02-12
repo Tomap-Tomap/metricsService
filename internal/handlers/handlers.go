@@ -15,15 +15,16 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type repository interface {
+type Repository interface {
 	UpdateByMetrics(m models.Metrics) (*models.Metrics, error)
 	ValueByMetrics(m models.Metrics) (*models.Metrics, error)
 	GetAllGauge() map[string]storage.Gauge
 	GetAllCounter() map[string]storage.Counter
+	PingDB() error
 }
 
 type ServiceHandlers struct {
-	ms repository
+	ms Repository
 }
 
 func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) {
@@ -197,6 +198,19 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (sh *ServiceHandlers) ping(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "charset=utf-8")
+
+	err := sh.ms.PingDB()
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(body)
@@ -214,7 +228,7 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 	return m, err
 }
 
-func NewServiceHandlers(ms repository) ServiceHandlers {
+func NewServiceHandlers(ms Repository) ServiceHandlers {
 	return ServiceHandlers{ms}
 }
 
@@ -232,6 +246,9 @@ func ServiceRouter(sh ServiceHandlers) chi.Router {
 		r.Route("/value", func(r chi.Router) {
 			r.Post("/", sh.valueByJSON)
 			r.Get("/{type}/{name}", sh.valueByURL)
+		})
+		r.Route("/ping", func(r chi.Router) {
+			r.Get("/", sh.ping)
 		})
 	})
 

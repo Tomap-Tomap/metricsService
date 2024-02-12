@@ -33,10 +33,24 @@ func main() {
 	defer cancel()
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	logger.Log.Info("Create mem storage")
-	ms, err := storage.NewMemStorage(egCtx, eg, producer, p)
-	if err != nil {
-		logger.Log.Fatal("Create mem storage", zap.Error(err))
+	var ms handlers.Repository
+
+	if p.DataBaseDSN != "" {
+		logger.Log.Info("Create database storage")
+		var closeDB storage.CloseFunc
+		ms, closeDB, err = storage.NewDBStorage(ctx, p.DataBaseDSN, 5)
+
+		if err != nil {
+			logger.Log.Fatal("Create database storage", zap.Error(err))
+		}
+
+		defer closeDB()
+	} else {
+		logger.Log.Info("Create mem storage")
+		ms, err = storage.NewMemStorage(egCtx, eg, producer, p)
+		if err != nil {
+			logger.Log.Fatal("Create mem storage", zap.Error(err))
+		}
 	}
 
 	logger.Log.Info("Create handlers")
