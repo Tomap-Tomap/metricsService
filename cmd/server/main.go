@@ -11,7 +11,6 @@ import (
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
-	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -34,18 +33,24 @@ func main() {
 	defer cancel()
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	logger.Log.Info("Connect to database")
-	conn, err := pgx.Connect(egCtx, p.DataBaseDSN)
+	var ms handlers.Repository
 
-	if err != nil {
-		logger.Log.Warn("Connect to database", zap.Error(err))
-	}
-	defer conn.Close(egCtx)
+	if p.DataBaseDSN != "" {
+		logger.Log.Info("Create database storage")
+		var closeDB storage.CloseFunc
+		ms, closeDB, err = storage.NewDBStorage(ctx, p.DataBaseDSN, 5)
 
-	logger.Log.Info("Create mem storage")
-	ms, err := storage.NewMemStorage(egCtx, eg, producer, conn, p)
-	if err != nil {
-		logger.Log.Fatal("Create mem storage", zap.Error(err))
+		if err != nil {
+			logger.Log.Fatal("Create database storage", zap.Error(err))
+		}
+
+		defer closeDB()
+	} else {
+		logger.Log.Info("Create mem storage")
+		ms, err = storage.NewMemStorage(egCtx, eg, producer, p)
+		if err != nil {
+			logger.Log.Fatal("Create mem storage", zap.Error(err))
+		}
 	}
 
 	logger.Log.Info("Create handlers")

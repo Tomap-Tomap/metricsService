@@ -55,7 +55,7 @@ func ParseFlagsServer() (p ServerParameters) {
 	f.StringVar(
 		&p.DataBaseDSN,
 		"d",
-		"host=localhost user=metrics password=metrics dbname=metrics sslmode=disable",
+		"",
 		"connection string to database",
 	)
 	f.UintVar(&p.StoreInterval, "i", 300, "interval in seconds for save storage")

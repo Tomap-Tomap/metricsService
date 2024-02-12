@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type repository interface {
+type Repository interface {
 	UpdateByMetrics(m models.Metrics) (*models.Metrics, error)
 	ValueByMetrics(m models.Metrics) (*models.Metrics, error)
 	GetAllGauge() map[string]storage.Gauge
@@ -24,7 +24,7 @@ type repository interface {
 }
 
 type ServiceHandlers struct {
-	ms repository
+	ms Repository
 }
 
 func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +228,7 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 	return m, err
 }
 
-func NewServiceHandlers(ms repository) ServiceHandlers {
+func NewServiceHandlers(ms Repository) ServiceHandlers {
 	return ServiceHandlers{ms}
 }
 
