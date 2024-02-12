@@ -45,13 +45,15 @@ func (dbs *DBStorage) createTables() error {
 	`
 	createGaugesQuery := `
 		CREATE TABLE gauges (
-			Id VARCHAR(20) PRIMARY KEY,
+			Id SERIAL PRIMARY KEY,
+			Name VARCHAR(150) UNIQUE,
 			Value DOUBLE PRECISION
 		)
 	`
 	createCountersQuery := `
 		CREATE TABLE counters (
-			Id VARCHAR(20) PRIMARY KEY,
+			Id SERIAL PRIMARY KEY,
+			Name VARCHAR(150) UNIQUE,
 			Delta INTEGER
 		)
 	`
@@ -116,11 +118,11 @@ func (dbs *DBStorage) updateCounterByMetrics(id string, delta *Counter) (*models
 
 	query := `
 		WITH t AS (
-			INSERT INTO counters (Id, Delta) VALUES ($1, $2)
-			ON CONFLICT (Id) DO UPDATE SET Delta = counters.Delta + EXCLUDED.Delta
+			INSERT INTO counters (Name, Delta) VALUES ($1, $2)
+			ON CONFLICT (Name) DO UPDATE SET Delta = counters.Delta + EXCLUDED.Delta
 			RETURNING *
 		)
-		SELECT Delta FROM t WHERE Id = $1
+		SELECT Delta FROM t WHERE Name = $1
 	`
 
 	var newDelta int64
@@ -152,11 +154,11 @@ func (dbs *DBStorage) updateGaugeByMetrics(id string, value *Gauge) (*models.Met
 
 	query := `
 		WITH t AS (
-			INSERT INTO gauges (Id, Value) VALUES ($1, $2)
-			ON CONFLICT (Id) DO UPDATE SET Value = EXCLUDED.Value
+			INSERT INTO gauges (Name, Value) VALUES ($1, $2)
+			ON CONFLICT (Name) DO UPDATE SET Value = EXCLUDED.Value
 			RETURNING *
 		)
-		SELECT Value FROM t WHERE Id = $1
+		SELECT Value FROM t WHERE Name = $1
 	`
 
 	var newValue float64
@@ -195,7 +197,7 @@ func (dbs *DBStorage) valueCounterByMetrics(id string) (*models.Metrics, error) 
 
 	var c int64
 
-	err := dbs.conn.QueryRow(ctx, "SELECT Delta FROM counters WHERE Id = $1", id).Scan(&c)
+	err := dbs.conn.QueryRow(ctx, "SELECT Delta FROM counters WHERE Name = $1", id).Scan(&c)
 
 	if err != nil {
 		return nil, fmt.Errorf("get counter %s: %w", id, err)
@@ -210,7 +212,7 @@ func (dbs *DBStorage) valueGaugeByMetrics(id string) (*models.Metrics, error) {
 
 	var g float64
 
-	err := dbs.conn.QueryRow(ctx, "SELECT Value FROM gauges WHERE Id = $1", id).Scan(&g)
+	err := dbs.conn.QueryRow(ctx, "SELECT Value FROM gauges WHERE Name = $1", id).Scan(&g)
 
 	if err != nil {
 		return nil, fmt.Errorf("get gauge %s: %w", id, err)
@@ -229,7 +231,7 @@ func (dbs *DBStorage) GetAllGauge() map[string]Gauge {
 		retMap = make(map[string]Gauge)
 	)
 
-	rows, err := dbs.conn.Query(ctx, "SELECT Id, Value FROM gauges")
+	rows, err := dbs.conn.Query(ctx, "SELECT Name, Value FROM gauges")
 
 	if err != nil {
 		return nil
@@ -257,7 +259,7 @@ func (dbs *DBStorage) GetAllCounter() map[string]Counter {
 		retMap = make(map[string]Counter)
 	)
 
-	rows, err := dbs.conn.Query(ctx, "SELECT Id, Delta FROM counters")
+	rows, err := dbs.conn.Query(ctx, "SELECT Name, Delta FROM counters")
 
 	if err != nil {
 		return nil
