@@ -67,6 +67,32 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 	return nil
 }
 
+func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error {
+	m := models.GetGaugesSliceByMap(batch)
+
+	b, err := compresses.GetCompressedJSON(m)
+
+	if err != nil {
+		return fmt.Errorf("failed compress batch: %w", err)
+	}
+
+	resp, err := c.restyClient.R().SetBody(b).
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetContext(ctx).
+		Post("http://" + c.addr + "/updates")
+
+	if err != nil {
+		return fmt.Errorf("send batch: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("status not 200, current status %d", resp.StatusCode())
+	}
+
+	return nil
+}
+
 func NewClient(addr string) *Client {
 	return &Client{addr, resty.New()}
 }

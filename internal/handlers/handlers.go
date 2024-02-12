@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -15,15 +16,17 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type repository interface {
-	UpdateByMetrics(m models.Metrics) (*models.Metrics, error)
-	ValueByMetrics(m models.Metrics) (*models.Metrics, error)
-	GetAllGauge() map[string]storage.Gauge
-	GetAllCounter() map[string]storage.Counter
+type Repository interface {
+	UpdateByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error)
+	ValueByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error)
+	GetAllGauge(ctx context.Context) (map[string]storage.Gauge, error)
+	GetAllCounter(ctx context.Context) (map[string]storage.Counter, error)
+	PingDB(ctx context.Context) error
+	Updates(ctx context.Context, metrics []models.Metrics) error
 }
 
 type ServiceHandlers struct {
-	ms repository
+	ms Repository
 }
 
 func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +40,7 @@ func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	m, err = sh.ms.UpdateByMetrics(*m)
+	m, err = sh.ms.UpdateByMetrics(r.Context(), *m)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -70,7 +73,7 @@ func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = sh.ms.UpdateByMetrics(*m)
+	_, err = sh.ms.UpdateByMetrics(r.Context(), *m)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -91,7 +94,7 @@ func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err = sh.ms.ValueByMetrics(*m)
+	m, err = sh.ms.ValueByMetrics(r.Context(), *m)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -123,7 +126,7 @@ func (sh *ServiceHandlers) valueByURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err = sh.ms.ValueByMetrics(*m)
+	m, err = sh.ms.ValueByMetrics(r.Context(), *m)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -187,13 +190,70 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 		Gauges   map[string]storage.Gauge
 	}
 
-	result := resultTable{sh.ms.GetAllCounter(), sh.ms.GetAllGauge()}
+	ctx := r.Context()
+
+	counters, err := sh.ms.GetAllCounter(ctx)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	gauges, err := sh.ms.GetAllGauge(ctx)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	result := resultTable{counters, gauges}
 	err = t.Execute(w, result)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (sh *ServiceHandlers) ping(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "charset=utf-8")
+
+	err := sh.ms.PingDB(r.Context())
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (sh *ServiceHandlers) updates(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "charset=utf-8")
+
+	var buf bytes.Buffer
+	_, err := buf.ReadFrom(r.Body)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	m, err := models.GetModelsSliceByJSON(buf.Bytes())
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = sh.ms.Updates(r.Context(), m)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -214,7 +274,7 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 	return m, err
 }
 
-func NewServiceHandlers(ms repository) ServiceHandlers {
+func NewServiceHandlers(ms Repository) ServiceHandlers {
 	return ServiceHandlers{ms}
 }
 
@@ -232,6 +292,12 @@ func ServiceRouter(sh ServiceHandlers) chi.Router {
 		r.Route("/value", func(r chi.Router) {
 			r.Post("/", sh.valueByJSON)
 			r.Get("/{type}/{name}", sh.valueByURL)
+		})
+		r.Route("/ping", func(r chi.Router) {
+			r.Get("/", sh.ping)
+		})
+		r.Route("/updates", func(r chi.Router) {
+			r.Post("/", sh.updates)
 		})
 	})
 

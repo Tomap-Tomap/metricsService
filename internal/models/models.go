@@ -85,6 +85,28 @@ func NewModelsByJSON(j []byte) (*Metrics, error) {
 	return &m, nil
 }
 
+func GetModelsSliceByJSON(j []byte) ([]Metrics, error) {
+	var m []Metrics
+	err := json.Unmarshal(j, &m)
+
+	if err != nil {
+		return nil, fmt.Errorf("unmarshall json %s: %w", string(j), err)
+	}
+
+	return m, nil
+}
+
+func GetGaugesSliceByMap(m map[string]float64) []Metrics {
+	rM := make([]Metrics, 0, len(m))
+
+	for k, v := range m {
+		value := v
+		rM = append(rM, Metrics{ID: k, MType: "gauge", Value: &value})
+	}
+
+	return rM
+}
+
 func parseGauge(g string) (float64, error) {
 	v, err := strconv.ParseFloat(g, 64)
 

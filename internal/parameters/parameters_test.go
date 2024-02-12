@@ -70,37 +70,73 @@ func delParameters() {
 }
 
 func TestParseFlagsServer(t *testing.T) {
-	tests := []struct {
-		name            string
-		f               func()
-		wantFlagRunAddr string
-	}{
-		{
-			name:            "test env",
-			f:               setEnv,
-			wantFlagRunAddr: "testEnv",
-		},
-		{
-			name:            "test flags",
-			f:               setFlags,
-			wantFlagRunAddr: "testFlags",
-		},
-		{
-			name:            "test default",
-			f:               nil,
-			wantFlagRunAddr: "localhost:8080",
-		},
+	t.Run("test env", func(t *testing.T) {
+		wantP := setEnvForServer()
+		p := ParseFlagsServer()
+
+		assert.Equal(t, wantP, p)
+		delParameters()
+	})
+
+	t.Run("test flags", func(t *testing.T) {
+		wantP := setFlagsForServer()
+		p := ParseFlagsServer()
+
+		assert.Equal(t, wantP, p)
+		delParameters()
+	})
+
+	t.Run("test default", func(t *testing.T) {
+		wantP := getDefaultParametersForServer()
+		p := ParseFlagsServer()
+
+		assert.Equal(t, wantP, p)
+		delParameters()
+	})
+}
+
+func setEnvForServer() ServerParameters {
+	sp := ServerParameters{
+		FlagRunAddr:     "testEnv",
+		FileStoragePath: "/tmp/test.json",
+		DataBaseDSN:     "test",
+		StoreInterval:   10,
+		Restore:         true,
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.f != nil {
-				tt.f()
-			}
+	os.Setenv("ADDRESS", sp.FlagRunAddr)
+	os.Setenv("FILE_STORAGE_PATH", sp.FileStoragePath)
+	os.Setenv("DATABASE_DSN", sp.DataBaseDSN)
+	os.Setenv("STORE_INTERVAL", "10")
+	os.Setenv("RESTORE", "true")
 
-			p := ParseFlagsServer()
+	return sp
+}
 
-			assert.Equal(t, tt.wantFlagRunAddr, p.FlagRunAddr)
-			delParameters()
-		})
+func setFlagsForServer() ServerParameters {
+	os.Args = []string{
+		"test",
+		"-a=testFlags",
+		"-f=/tmp/test/test.json",
+		"-d=testdb",
+		"-i=10",
+		"-r=false",
+	}
+
+	return ServerParameters{
+		FlagRunAddr:     "testFlags",
+		FileStoragePath: "/tmp/test/test.json",
+		DataBaseDSN:     "testdb",
+		StoreInterval:   10,
+		Restore:         false,
+	}
+}
+
+func getDefaultParametersForServer() ServerParameters {
+	return ServerParameters{
+		FlagRunAddr:     "localhost:8080",
+		FileStoragePath: "/tmp/metrics-db.json",
+		DataBaseDSN:     "",
+		StoreInterval:   300,
+		Restore:         true,
 	}
 }
