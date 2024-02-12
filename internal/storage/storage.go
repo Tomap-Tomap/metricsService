@@ -13,6 +13,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/DarkOmap/metricsService/internal/parameters"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -35,15 +36,17 @@ type MemStorage struct {
 	fileStoragePath string
 	storeInterval   uint
 	producer        *file.Producer
+	conn            *pgx.Conn
 }
 
-func NewMemStorage(ctx context.Context, eg *errgroup.Group, producer *file.Producer, p parameters.ServerParameters) (*MemStorage, error) {
+func NewMemStorage(ctx context.Context, eg *errgroup.Group, producer *file.Producer, conn *pgx.Conn, p parameters.ServerParameters) (*MemStorage, error) {
 	ms := MemStorage{}
 	ms.Counters.Data = make(map[string]Counter)
 	ms.Gauges.Data = make(map[string]Gauge)
 	ms.fileStoragePath = p.FileStoragePath
 	ms.storeInterval = p.StoreInterval
 	ms.producer = producer
+	ms.conn = conn
 
 	if p.Restore {
 		consumer, err := file.NewConsumer(p.FileStoragePath)
@@ -248,4 +251,14 @@ func (ms *MemStorage) GetAllCounter() (retMap map[string]Counter) {
 	retMap = maps.Clone(ms.Counters.Data)
 	ms.Counters.RUnlock()
 	return
+}
+
+func (ms *MemStorage) PingDB() error {
+	if ms.conn == nil {
+		return fmt.Errorf("database is not connect")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return ms.conn.Ping(ctx)
 }
