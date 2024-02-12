@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -24,13 +25,13 @@ type StorageMockedObject struct {
 	mock.Mock
 }
 
-func (sm *StorageMockedObject) UpdateByMetrics(m models.Metrics) (*models.Metrics, error) {
+func (sm *StorageMockedObject) UpdateByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
 	args := sm.Called(m)
 
 	return args.Get(0).(*models.Metrics), args.Error(1)
 }
 
-func (sm *StorageMockedObject) ValueByMetrics(m models.Metrics) (*models.Metrics, error) {
+func (sm *StorageMockedObject) ValueByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
 	args := sm.Called(m)
 
 	if args.Get(0) == nil {
@@ -39,19 +40,25 @@ func (sm *StorageMockedObject) ValueByMetrics(m models.Metrics) (*models.Metrics
 	return args.Get(0).(*models.Metrics), args.Error(1)
 }
 
-func (sm *StorageMockedObject) GetAllGauge() map[string]storage.Gauge {
+func (sm *StorageMockedObject) GetAllGauge(ctx context.Context) (map[string]storage.Gauge, error) {
 	args := sm.Called()
 
-	return args.Get(0).(map[string]storage.Gauge)
+	return args.Get(0).(map[string]storage.Gauge), args.Error(1)
 }
 
-func (sm *StorageMockedObject) GetAllCounter() map[string]storage.Counter {
+func (sm *StorageMockedObject) GetAllCounter(ctx context.Context) (map[string]storage.Counter, error) {
 	args := sm.Called()
 
-	return args.Get(0).(map[string]storage.Counter)
+	return args.Get(0).(map[string]storage.Counter), args.Error(1)
 }
 
-func (sm *StorageMockedObject) PingDB() error {
+func (sm *StorageMockedObject) PingDB(ctx context.Context) error {
+	args := sm.Called()
+
+	return args.Error(0)
+}
+
+func (sm *StorageMockedObject) Updates(ctx context.Context, metrics []models.Metrics) error {
 	args := sm.Called()
 
 	return args.Error(0)
@@ -319,8 +326,8 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 
 func TestServiceHandlers_all(t *testing.T) {
 	ms := new(StorageMockedObject)
-	ms.On("GetAllGauge").Return(map[string]storage.Gauge{"test": 1.1})
-	ms.On("GetAllCounter").Return(map[string]storage.Counter{"test": 1})
+	ms.On("GetAllGauge").Return(map[string]storage.Gauge{"test": 1.1}, nil)
+	ms.On("GetAllCounter").Return(map[string]storage.Counter{"test": 1}, nil)
 	sh := NewServiceHandlers(ms)
 	r := ServiceRouter(sh)
 

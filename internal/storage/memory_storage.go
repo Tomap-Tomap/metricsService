@@ -61,7 +61,7 @@ func NewMemStorage(ctx context.Context, eg *errgroup.Group, producer *file.Produ
 				ms.Counters.Data[m.ID] = Counter(*m.Delta)
 				continue
 			}
-			_, err := ms.UpdateByMetrics(*m)
+			_, err := ms.UpdateByMetrics(context.Background(), *m)
 
 			if err != nil {
 				return nil, fmt.Errorf("read from file for storage: %w", err)
@@ -97,7 +97,7 @@ func (ms *MemStorage) runDumping(ctx context.Context, eg *errgroup.Group) {
 }
 
 func (ms *MemStorage) dumpStorage() error {
-	allGauges := ms.GetAllGauge()
+	allGauges, _ := ms.GetAllGauge(context.Background())
 	for idx, val := range allGauges {
 		m := models.NewMetricsForGauge(idx, float64(val))
 		err := ms.producer.WriteInFile(m)
@@ -107,7 +107,7 @@ func (ms *MemStorage) dumpStorage() error {
 		}
 	}
 
-	allCouters := ms.GetAllCounter()
+	allCouters, _ := ms.GetAllCounter(context.Background())
 	for idx, val := range allCouters {
 		m := models.NewMetricsForCounter(idx, int64(val))
 		err := ms.producer.WriteInFile(m)
@@ -119,7 +119,7 @@ func (ms *MemStorage) dumpStorage() error {
 	return nil
 }
 
-func (ms *MemStorage) UpdateByMetrics(m models.Metrics) (*models.Metrics, error) {
+func (ms *MemStorage) UpdateByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
 	switch m.MType {
 	case "counter":
 		return ms.updateCounterByMetrics(m.ID, (*Counter)(m.Delta))
@@ -150,7 +150,7 @@ func (ms *MemStorage) updateGaugeByMetrics(id string, value *Gauge) (*models.Met
 	return models.NewMetricsForGauge(id, newValue), nil
 }
 
-func (ms *MemStorage) ValueByMetrics(m models.Metrics) (*models.Metrics, error) {
+func (ms *MemStorage) ValueByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
 	switch m.MType {
 	case "counter":
 		return ms.valueCounterByMetrics(m.ID)
@@ -233,20 +233,41 @@ func (ms *MemStorage) getCounter(name string) (Counter, error) {
 	return v, nil
 }
 
-func (ms *MemStorage) GetAllGauge() (retMap map[string]Gauge) {
+func (ms *MemStorage) GetAllGauge(ctx context.Context) (retMap map[string]Gauge, err error) {
 	ms.Gauges.RLock()
 	retMap = maps.Clone(ms.Gauges.Data)
 	ms.Gauges.RUnlock()
 	return
 }
 
-func (ms *MemStorage) GetAllCounter() (retMap map[string]Counter) {
+func (ms *MemStorage) GetAllCounter(ctx context.Context) (retMap map[string]Counter, err error) {
 	ms.Counters.RLock()
 	retMap = maps.Clone(ms.Counters.Data)
 	ms.Counters.RUnlock()
 	return
 }
 
-func (ms *MemStorage) PingDB() error {
+func (ms *MemStorage) PingDB(ctx context.Context) error {
 	return fmt.Errorf("for this storage type database is not supported")
+}
+
+func (ms *MemStorage) Updates(ctx context.Context, metrics []models.Metrics) error {
+	for _, val := range metrics {
+		switch val.MType {
+		case "gauge":
+			_, err := ms.updateGaugeByMetrics(val.ID, (*Gauge)(val.Value))
+
+			if err != nil {
+				return err
+			}
+		case "counter":
+			_, err := ms.updateCounterByMetrics(val.ID, (*Counter)(val.Delta))
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

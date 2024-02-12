@@ -38,7 +38,7 @@ func main() {
 	if p.DataBaseDSN != "" {
 		logger.Log.Info("Create database storage")
 		var closeDB storage.CloseFunc
-		ms, closeDB, err = storage.NewDBStorage(ctx, p.DataBaseDSN, 5)
+		ms, closeDB, err = storage.NewDBStorage(ctx, p.DataBaseDSN)
 
 		if err != nil {
 			logger.Log.Fatal("Create database storage", zap.Error(err))

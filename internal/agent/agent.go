@@ -67,37 +67,23 @@ func (a *Agent) Run() error {
 
 func (a *Agent) sendReport(ctx context.Context) {
 	msForServer := memstats.GetMemStatsForServer(&a.ms)
+	msForServer["RandomValue"] = rand.Float64()
 
-	for k, v := range msForServer {
-		err := a.client.SendGauge(ctx, k, v)
+	err := a.client.SendBatch(ctx, msForServer)
 
-		if err != nil {
-			logger.Log.Warn(
-				"Push memstats",
-				zap.String("name", k),
-				zap.Float64("value", v),
-				zap.Error(err),
-			)
-		}
+	if err != nil {
+		logger.Log.Warn(
+			"Push memstats",
+			zap.Error(err),
+		)
 	}
 
-	err := a.client.SendCounter(ctx, "PollCount", a.pollCount.Load())
+	err = a.client.SendCounter(ctx, "PollCount", a.pollCount.Load())
 
 	if err != nil {
 		logger.Log.Warn(
 			"Error on sending poll count",
 			zap.Int64("value", a.pollCount.Load()),
-			zap.Error(err),
-		)
-	}
-
-	randV := rand.Float64()
-	err = a.client.SendGauge(ctx, "RandomValue", randV)
-
-	if err != nil {
-		logger.Log.Warn(
-			"Error on sending random value",
-			zap.Float64("value", randV),
 			zap.Error(err),
 		)
 	}
