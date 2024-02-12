@@ -226,7 +226,7 @@ func (dbs *DBStorage) GetAllGauge() map[string]Gauge {
 	var (
 		s      string
 		g      float64
-		retMap map[string]Gauge = make(map[string]Gauge)
+		retMap = make(map[string]Gauge)
 	)
 
 	rows, err := dbs.conn.Query(ctx, "SELECT Id, Value FROM gauges")
@@ -254,7 +254,7 @@ func (dbs *DBStorage) GetAllCounter() map[string]Counter {
 	var (
 		s      string
 		c      int64
-		retMap map[string]Counter = make(map[string]Counter)
+		retMap = make(map[string]Counter)
 	)
 
 	rows, err := dbs.conn.Query(ctx, "SELECT Id, Delta FROM counters")

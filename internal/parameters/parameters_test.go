@@ -135,7 +135,7 @@ func getDefaultParametersForServer() ServerParameters {
 	return ServerParameters{
 		FlagRunAddr:     "localhost:8080",
 		FileStoragePath: "/tmp/metrics-db.json",
-		DataBaseDSN:     "host=localhost user=metrics password=metrics dbname=metrics sslmode=disable",
+		DataBaseDSN:     "",
 		StoreInterval:   300,
 		Restore:         true,
 	}
