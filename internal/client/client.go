@@ -2,8 +2,11 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"syscall"
+	"time"
 
 	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/models"
@@ -24,11 +27,15 @@ func (c *Client) SendGauge(ctx context.Context, name string, value float64) erro
 		return fmt.Errorf("failed compress model name %s value %f: %w", name, value, err)
 	}
 
-	resp, err := c.restyClient.R().SetBody(b).
+	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
-		SetContext(ctx).
-		Post("http://" + c.addr + "/update")
+		SetContext(ctx)
+	resp, err := req.Post("http://" + c.addr + "/update")
+
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		resp, err = c.doRetryRequest(req)
+	}
 
 	if err != nil {
 		return fmt.Errorf("send gauge name %s value %f: %w", name, value, err)
@@ -50,11 +57,15 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 		return fmt.Errorf("failed compress model name %s delta %d: %w", name, delta, err)
 	}
 
-	resp, err := c.restyClient.R().SetBody(b).
+	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
-		SetContext(ctx).
-		Post("http://" + c.addr + "/update")
+		SetContext(ctx)
+	resp, err := req.Post("http://" + c.addr + "/update")
+
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		resp, err = c.doRetryRequest(req)
+	}
 
 	if err != nil {
 		return fmt.Errorf("send counter name %s delta %d: %w", name, delta, err)
@@ -76,11 +87,16 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 		return fmt.Errorf("failed compress batch: %w", err)
 	}
 
-	resp, err := c.restyClient.R().SetBody(b).
+	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
-		SetContext(ctx).
-		Post("http://" + c.addr + "/updates")
+		SetContext(ctx)
+
+	resp, err := req.Post("http://" + c.addr + "/updates")
+
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		resp, err = c.doRetryRequest(req)
+	}
 
 	if err != nil {
 		return fmt.Errorf("send batch: %w", err)
@@ -91,6 +107,31 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 	}
 
 	return nil
+}
+
+func (c *Client) doRetryRequest(req *resty.Request) (*resty.Response, error) {
+	sleepTime := 1
+	var (
+		err  error
+		resp *resty.Response
+	)
+	for i := 0; i < 3; i++ {
+		<-time.After(time.Duration(sleepTime) * time.Second)
+
+		resp, err = req.Post("http://" + c.addr + "/updates")
+
+		if err == nil {
+			return resp, err
+		}
+
+		if !errors.Is(err, syscall.ECONNREFUSED) {
+			return nil, err
+		}
+
+		sleepTime += 2
+	}
+
+	return nil, err
 }
 
 func NewClient(addr string) *Client {

@@ -2,17 +2,23 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/DarkOmap/metricsService/internal/models"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type CloseFunc func()
 
 type DBStorage struct {
-	conn *pgx.Conn
+	conn           *pgx.Conn
+	retryCount     int
+	duration       int
+	durationPolicy int
 }
 
 func NewDBStorage(ctx context.Context, dsn string) (*DBStorage, CloseFunc, error) {
@@ -22,7 +28,7 @@ func NewDBStorage(ctx context.Context, dsn string) (*DBStorage, CloseFunc, error
 		return nil, nil, fmt.Errorf("connect to database: %w", err)
 	}
 
-	dbs := &DBStorage{conn}
+	dbs := &DBStorage{conn: conn}
 
 	if err := dbs.createTables(); err != nil {
 		return nil, nil, fmt.Errorf("create tables in database: %w", err)
@@ -32,7 +38,7 @@ func NewDBStorage(ctx context.Context, dsn string) (*DBStorage, CloseFunc, error
 }
 
 func (dbs *DBStorage) createTables() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 
 	selectQuery := `
@@ -61,14 +67,21 @@ func (dbs *DBStorage) createTables() error {
 
 	err := pgx.BeginFunc(ctx, dbs.conn, func(tx pgx.Tx) error {
 		var te bool
-		err := dbs.conn.QueryRow(ctx, selectQuery, "gauges").Scan(&te)
+
+		err := dbs.errorHanlder(func() error {
+			return dbs.conn.QueryRow(ctx, selectQuery, "gauges").Scan(&te)
+		})
 
 		if err != nil {
 			return fmt.Errorf("get gauges table: %w", err)
 		}
 
 		if !te {
-			_, err := dbs.conn.Exec(ctx, createGaugesQuery)
+			err := dbs.errorHanlder(func() error {
+				_, err := dbs.conn.Exec(ctx, createGaugesQuery)
+
+				return err
+			})
 
 			if err != nil {
 				return fmt.Errorf("create gauges table: %w", err)
@@ -76,15 +89,19 @@ func (dbs *DBStorage) createTables() error {
 		}
 
 		te = false
-
-		err = dbs.conn.QueryRow(ctx, selectQuery, "counters").Scan(&te)
+		err = dbs.errorHanlder(func() error {
+			return dbs.conn.QueryRow(ctx, selectQuery, "counters").Scan(&te)
+		})
 
 		if err != nil {
 			return fmt.Errorf("get counters table: %w", err)
 		}
 
 		if !te {
-			_, err := dbs.conn.Exec(ctx, createCountersQuery)
+			err := dbs.errorHanlder(func() error {
+				_, err := dbs.conn.Exec(ctx, createCountersQuery)
+				return err
+			})
 
 			if err != nil {
 				return fmt.Errorf("create counters table: %w", err)
@@ -132,7 +149,9 @@ func (dbs *DBStorage) updateCounterByMetrics(ctx context.Context, id string, del
 
 	var newDelta int64
 
-	err := dbs.conn.QueryRow(ctx, query, id, *delta).Scan(&newDelta)
+	err := dbs.errorHanlder(func() error {
+		return dbs.conn.QueryRow(ctx, query, id, *delta).Scan(&newDelta)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("query execution: %w", err)
@@ -157,7 +176,9 @@ func (dbs *DBStorage) updateGaugeByMetrics(ctx context.Context, id string, value
 
 	var newValue float64
 
-	err := dbs.conn.QueryRow(ctx, query, id, *value).Scan(&newValue)
+	err := dbs.errorHanlder(func() error {
+		return dbs.conn.QueryRow(ctx, query, id, *value).Scan(&newValue)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("query execution: %w", err)
@@ -180,7 +201,9 @@ func (dbs *DBStorage) ValueByMetrics(ctx context.Context, m models.Metrics) (*mo
 func (dbs *DBStorage) valueCounterByMetrics(ctx context.Context, id string) (*models.Metrics, error) {
 	var c int64
 
-	err := dbs.conn.QueryRow(ctx, "SELECT Delta FROM counters WHERE Name = $1", id).Scan(&c)
+	err := dbs.errorHanlder(func() error {
+		return dbs.conn.QueryRow(ctx, "SELECT Delta FROM counters WHERE Name = $1", id).Scan(&c)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("get counter %s: %w", id, err)
@@ -192,7 +215,9 @@ func (dbs *DBStorage) valueCounterByMetrics(ctx context.Context, id string) (*mo
 func (dbs *DBStorage) valueGaugeByMetrics(ctx context.Context, id string) (*models.Metrics, error) {
 	var g float64
 
-	err := dbs.conn.QueryRow(ctx, "SELECT Value FROM gauges WHERE Name = $1", id).Scan(&g)
+	err := dbs.errorHanlder(func() error {
+		return dbs.conn.QueryRow(ctx, "SELECT Value FROM gauges WHERE Name = $1", id).Scan(&g)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("get gauge %s: %w", id, err)
@@ -206,18 +231,27 @@ func (dbs *DBStorage) GetAllGauge(ctx context.Context) (map[string]Gauge, error)
 		s      string
 		g      float64
 		retMap = make(map[string]Gauge)
+		rows   pgx.Rows
 	)
 
-	rows, err := dbs.conn.Query(ctx, "SELECT Name, Value FROM gauges")
+	err := dbs.errorHanlder(func() error {
+		var err error
+		rows, err = dbs.conn.Query(ctx, "SELECT Name, Value FROM gauges")
+		return err
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("get gauges from db: %w", err)
 	}
 	defer rows.Close()
 
-	_, err = pgx.ForEachRow(rows, []any{&s, &g}, func() error {
-		retMap[s] = Gauge(g)
-		return nil
+	err = dbs.errorHanlder(func() error {
+		_, err := pgx.ForEachRow(rows, []any{&s, &g}, func() error {
+			retMap[s] = Gauge(g)
+			return nil
+		})
+
+		return err
 	})
 
 	if err != nil {
@@ -232,18 +266,27 @@ func (dbs *DBStorage) GetAllCounter(ctx context.Context) (map[string]Counter, er
 		s      string
 		c      int64
 		retMap = make(map[string]Counter)
+		rows   pgx.Rows
 	)
 
-	rows, err := dbs.conn.Query(ctx, "SELECT Name, Delta FROM counters")
+	err := dbs.errorHanlder(func() error {
+		var err error
+		rows, err = dbs.conn.Query(ctx, "SELECT Name, Delta FROM counters")
+		return err
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("get counters from db: %w", err)
 	}
 	defer rows.Close()
 
-	_, err = pgx.ForEachRow(rows, []any{&s, &c}, func() error {
-		retMap[s] = Counter(c)
-		return nil
+	err = dbs.errorHanlder(func() error {
+		_, err := pgx.ForEachRow(rows, []any{&s, &c}, func() error {
+			retMap[s] = Counter(c)
+			return nil
+		})
+
+		return err
 	})
 
 	if err != nil {
@@ -284,15 +327,42 @@ func (dbs *DBStorage) Updates(ctx context.Context, metrics []models.Metrics) err
 	}
 
 	err := pgx.BeginFunc(ctx, dbs.conn, func(tx pgx.Tx) error {
-		if err := dbs.conn.SendBatch(ctx, batch).Close(); err != nil {
-			return err
-		}
+		err := dbs.errorHanlder(func() error {
+			return dbs.conn.SendBatch(ctx, batch).Close()
+		})
 
-		return nil
+		return err
 	})
 
 	if err != nil {
 		return fmt.Errorf("send batch: %w", err)
 	}
 	return nil
+}
+
+func (dbs *DBStorage) errorHanlder(handelFunc func() error) error {
+	err := handelFunc()
+
+	if err == nil {
+		return err
+	}
+
+	var tError *pgconn.PgError
+
+	if errors.As(err, &tError) && pgerrcode.IsConnectionException(tError.Code) {
+		duration := dbs.duration
+		for i := 0; i < dbs.retryCount; i++ {
+			time.Sleep(time.Duration(duration) * time.Second)
+
+			err = handelFunc()
+
+			if !(errors.As(err, &tError) && pgerrcode.IsConnectionException(tError.Code)) {
+				break
+			}
+
+			duration += dbs.durationPolicy
+		}
+	}
+
+	return err
 }
