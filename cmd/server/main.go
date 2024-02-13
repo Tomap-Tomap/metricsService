@@ -11,6 +11,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -37,14 +38,19 @@ func main() {
 
 	if p.DataBaseDSN != "" {
 		logger.Log.Info("Create database storage")
-		var closeDB storage.CloseFunc
-		ms, closeDB, err = storage.NewDBStorage(ctx, p.DataBaseDSN)
+
+		conn, err := pgx.Connect(ctx, p.DataBaseDSN)
+
+		if err != nil {
+			logger.Log.Fatal("Connect to database", zap.Error(err))
+		}
+		defer conn.Close(ctx)
+
+		ms, err = storage.NewDBStorage(conn)
 
 		if err != nil {
 			logger.Log.Fatal("Create database storage", zap.Error(err))
 		}
-
-		defer closeDB()
 	} else {
 		logger.Log.Info("Create mem storage")
 		ms, err = storage.NewMemStorage(egCtx, eg, producer, p)

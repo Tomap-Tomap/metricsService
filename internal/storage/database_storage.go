@@ -12,29 +12,30 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-type CloseFunc func()
+type PgxIface interface {
+	Begin(context.Context) (pgx.Tx, error)
+	QueryRow(context.Context, string, ...interface{}) pgx.Row
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+	Ping(context.Context) error
+	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+	SendBatch(ctx context.Context, b *pgx.Batch) (br pgx.BatchResults)
+}
 
 type DBStorage struct {
-	conn           *pgx.Conn
+	conn           PgxIface
 	retryCount     int
 	duration       int
 	durationPolicy int
 }
 
-func NewDBStorage(ctx context.Context, dsn string) (*DBStorage, CloseFunc, error) {
-	conn, err := pgx.Connect(ctx, dsn)
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("connect to database: %w", err)
-	}
-
+func NewDBStorage(conn PgxIface) (*DBStorage, error) {
 	dbs := &DBStorage{conn: conn}
 
 	if err := dbs.createTables(); err != nil {
-		return nil, nil, fmt.Errorf("create tables in database: %w", err)
+		return nil, fmt.Errorf("create tables in database: %w", err)
 	}
 
-	return dbs, func() { conn.Close(ctx) }, nil
+	return dbs, nil
 }
 
 func (dbs *DBStorage) createTables() error {
@@ -343,7 +344,7 @@ func (dbs *DBStorage) Updates(ctx context.Context, metrics []models.Metrics) err
 func (dbs *DBStorage) errorHanlder(handelFunc func() error) error {
 	err := handelFunc()
 
-	if err == nil {
+	if err == nil || dbs.retryCount <= 0 {
 		return err
 	}
 
