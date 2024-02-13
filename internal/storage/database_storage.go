@@ -61,7 +61,7 @@ func (dbs *DBStorage) createTables() error {
 		CREATE TABLE counters (
 			Id SERIAL PRIMARY KEY,
 			Name VARCHAR(150) UNIQUE,
-			Delta INTEGER
+			Delta BIGINT
 		);
 		CREATE UNIQUE INDEX counter_idx ON counters (Name);
 	`
