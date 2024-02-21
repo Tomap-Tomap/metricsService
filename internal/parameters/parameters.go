@@ -43,6 +43,7 @@ func ParseFlagsAgent() (p AgentParameters) {
 
 type ServerParameters struct {
 	FlagRunAddr, FileStoragePath string
+	DataBaseDSN                  string
 	StoreInterval                uint
 	Restore                      bool
 }
@@ -51,6 +52,12 @@ func ParseFlagsServer() (p ServerParameters) {
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
 	f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
+	f.StringVar(
+		&p.DataBaseDSN,
+		"d",
+		"",
+		"connection string to database",
+	)
 	f.UintVar(&p.StoreInterval, "i", 300, "interval in seconds for save storage")
 	f.BoolVar(&p.Restore, "r", true, "flag for upload storage from file")
 	f.Parse(os.Args[1:])
@@ -61,6 +68,10 @@ func ParseFlagsServer() (p ServerParameters) {
 
 	if envSP := os.Getenv("FILE_STORAGE_PATH"); envSP != "" {
 		p.FileStoragePath = envSP
+	}
+
+	if envDB := os.Getenv("DATABASE_DSN"); envDB != "" {
+		p.DataBaseDSN = envDB
 	}
 
 	if envSI := os.Getenv("STORE_INTERVAL"); envSI != "" {

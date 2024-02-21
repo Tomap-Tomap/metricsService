@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -284,7 +285,7 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 				},
 				producer: producer,
 			}
-			got, err := ms.UpdateByMetrics(*tt.args.m)
+			got, err := ms.UpdateByMetrics(context.Background(), *tt.args.m)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -362,7 +363,7 @@ func TestMemStorage_ValueByMetrics(t *testing.T) {
 				},
 				producer: &file.Producer{},
 			}
-			got, err := ms.ValueByMetrics(tt.args.m)
+			got, err := ms.ValueByMetrics(context.Background(), tt.args.m)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -642,7 +643,7 @@ func TestMemStorage_GetAllGauge(t *testing.T) {
 				},
 				producer: &file.Producer{},
 			}
-			gotRetMap := ms.GetAllGauge()
+			gotRetMap, _ := ms.GetAllGauge(context.Background())
 			assert.Equal(t, tt.wantRetMap, gotRetMap)
 		})
 	}
@@ -675,7 +676,7 @@ func TestMemStorage_GetAllCounter(t *testing.T) {
 				},
 				producer: &file.Producer{},
 			}
-			gotRetMap := ms.GetAllCounter()
+			gotRetMap, _ := ms.GetAllCounter(context.Background())
 			assert.Equal(t, tt.wantRetMap, gotRetMap)
 		})
 	}
