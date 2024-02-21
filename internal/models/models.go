@@ -75,7 +75,7 @@ func NewModelsByJSON(j []byte) (*Metrics, error) {
 	err := json.Unmarshal(j, &m)
 
 	if err != nil {
-		return nil, fmt.Errorf("unmarshall json %s: %w", string(j), err)
+		return nil, fmt.Errorf("unmarshal json %s: %w", string(j), err)
 	}
 
 	if err := checkType(m.MType); err != nil {
@@ -90,7 +90,7 @@ func GetModelsSliceByJSON(j []byte) ([]Metrics, error) {
 	err := json.Unmarshal(j, &m)
 
 	if err != nil {
-		return nil, fmt.Errorf("unmarshall json %s: %w", string(j), err)
+		return nil, fmt.Errorf("unmarshal json %s: %w", string(j), err)
 	}
 
 	return m, nil

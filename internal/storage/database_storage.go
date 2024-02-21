@@ -12,24 +12,20 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-type PgxIface interface {
-	Begin(context.Context) (pgx.Tx, error)
-	QueryRow(context.Context, string, ...interface{}) pgx.Row
-	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
-	Ping(context.Context) error
-	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
-	SendBatch(ctx context.Context, b *pgx.Batch) (br pgx.BatchResults)
-}
-
 type DBStorage struct {
-	conn           PgxIface
-	retryCount     int
-	duration       int
-	durationPolicy int
+	conn        *pgx.Conn
+	retryPolicy retryPolicy
 }
 
-func NewDBStorage(conn PgxIface) (*DBStorage, error) {
-	dbs := &DBStorage{conn: conn}
+type retryPolicy struct {
+	retryCount int
+	duration   int
+	increment  int
+}
+
+func NewDBStorage(conn *pgx.Conn) (*DBStorage, error) {
+	rp := retryPolicy{3, 1, 2}
+	dbs := &DBStorage{conn: conn, retryPolicy: rp}
 
 	if err := dbs.createTables(); err != nil {
 		return nil, fmt.Errorf("create tables in database: %w", err)
@@ -42,71 +38,39 @@ func (dbs *DBStorage) createTables() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 
-	selectQuery := `
-		SELECT
-			COUNT(table_name) > 0 AS tableExist
-		FROM information_schema.tables
-		WHERE
-		table_name = $1
-	`
 	createGaugesQuery := `
-		CREATE TABLE gauges (
+		CREATE TABLE IF NOT EXISTS gauges (
 			Id SERIAL PRIMARY KEY,
 			Name VARCHAR(150) UNIQUE,
 			Value DOUBLE PRECISION
 		);
-		CREATE UNIQUE INDEX gauge_idx ON gauges (Name);
+		CREATE UNIQUE INDEX IF NOT EXISTS gauge_idx ON gauges (Name);
 	`
 	createCountersQuery := `
-		CREATE TABLE counters (
+		CREATE TABLE IF NOT EXISTS counters (
 			Id SERIAL PRIMARY KEY,
 			Name VARCHAR(150) UNIQUE,
 			Delta BIGINT
 		);
-		CREATE UNIQUE INDEX counter_idx ON counters (Name);
+		CREATE UNIQUE INDEX IF NOT EXISTS counter_idx ON counters (Name);
 	`
 
 	err := pgx.BeginFunc(ctx, dbs.conn, func(tx pgx.Tx) error {
-		var te bool
 
-		err := dbs.errorHanlder(func() error {
-			return dbs.conn.QueryRow(ctx, selectQuery, "gauges").Scan(&te)
+		_, err := retry2[pgconn.CommandTag](ctx, dbs.retryPolicy, func() (pgconn.CommandTag, error) {
+			return dbs.conn.Exec(ctx, createGaugesQuery)
 		})
 
 		if err != nil {
-			return fmt.Errorf("get gauges table: %w", err)
+			return fmt.Errorf("create gauges table: %w", err)
 		}
 
-		if !te {
-			err := dbs.errorHanlder(func() error {
-				_, err := dbs.conn.Exec(ctx, createGaugesQuery)
-
-				return err
-			})
-
-			if err != nil {
-				return fmt.Errorf("create gauges table: %w", err)
-			}
-		}
-
-		te = false
-		err = dbs.errorHanlder(func() error {
-			return dbs.conn.QueryRow(ctx, selectQuery, "counters").Scan(&te)
+		_, err = retry2[pgconn.CommandTag](ctx, dbs.retryPolicy, func() (pgconn.CommandTag, error) {
+			return dbs.conn.Exec(ctx, createCountersQuery)
 		})
 
 		if err != nil {
-			return fmt.Errorf("get counters table: %w", err)
-		}
-
-		if !te {
-			err := dbs.errorHanlder(func() error {
-				_, err := dbs.conn.Exec(ctx, createCountersQuery)
-				return err
-			})
-
-			if err != nil {
-				return fmt.Errorf("create counters table: %w", err)
-			}
+			return fmt.Errorf("create counters table: %w", err)
 		}
 
 		return nil
@@ -150,7 +114,7 @@ func (dbs *DBStorage) updateCounterByMetrics(ctx context.Context, id string, del
 
 	var newDelta int64
 
-	err := dbs.errorHanlder(func() error {
+	err := retry(ctx, dbs.retryPolicy, func() error {
 		return dbs.conn.QueryRow(ctx, query, id, *delta).Scan(&newDelta)
 	})
 
@@ -177,7 +141,7 @@ func (dbs *DBStorage) updateGaugeByMetrics(ctx context.Context, id string, value
 
 	var newValue float64
 
-	err := dbs.errorHanlder(func() error {
+	err := retry(ctx, dbs.retryPolicy, func() error {
 		return dbs.conn.QueryRow(ctx, query, id, *value).Scan(&newValue)
 	})
 
@@ -201,8 +165,7 @@ func (dbs *DBStorage) ValueByMetrics(ctx context.Context, m models.Metrics) (*mo
 
 func (dbs *DBStorage) valueCounterByMetrics(ctx context.Context, id string) (*models.Metrics, error) {
 	var c int64
-
-	err := dbs.errorHanlder(func() error {
+	err := retry(ctx, dbs.retryPolicy, func() error {
 		return dbs.conn.QueryRow(ctx, "SELECT Delta FROM counters WHERE Name = $1", id).Scan(&c)
 	})
 
@@ -215,8 +178,7 @@ func (dbs *DBStorage) valueCounterByMetrics(ctx context.Context, id string) (*mo
 
 func (dbs *DBStorage) valueGaugeByMetrics(ctx context.Context, id string) (*models.Metrics, error) {
 	var g float64
-
-	err := dbs.errorHanlder(func() error {
+	err := retry(ctx, dbs.retryPolicy, func() error {
 		return dbs.conn.QueryRow(ctx, "SELECT Value FROM gauges WHERE Name = $1", id).Scan(&g)
 	})
 
@@ -235,10 +197,8 @@ func (dbs *DBStorage) GetAllGauge(ctx context.Context) (map[string]Gauge, error)
 		rows   pgx.Rows
 	)
 
-	err := dbs.errorHanlder(func() error {
-		var err error
-		rows, err = dbs.conn.Query(ctx, "SELECT Name, Value FROM gauges")
-		return err
+	rows, err := retry2[pgx.Rows](ctx, dbs.retryPolicy, func() (pgx.Rows, error) {
+		return dbs.conn.Query(ctx, "SELECT Name, Value FROM gauges")
 	})
 
 	if err != nil {
@@ -246,13 +206,11 @@ func (dbs *DBStorage) GetAllGauge(ctx context.Context) (map[string]Gauge, error)
 	}
 	defer rows.Close()
 
-	err = dbs.errorHanlder(func() error {
-		_, err := pgx.ForEachRow(rows, []any{&s, &g}, func() error {
+	_, err = retry2[pgconn.CommandTag](ctx, dbs.retryPolicy, func() (pgconn.CommandTag, error) {
+		return pgx.ForEachRow(rows, []any{&s, &g}, func() error {
 			retMap[s] = Gauge(g)
 			return nil
 		})
-
-		return err
 	})
 
 	if err != nil {
@@ -270,10 +228,8 @@ func (dbs *DBStorage) GetAllCounter(ctx context.Context) (map[string]Counter, er
 		rows   pgx.Rows
 	)
 
-	err := dbs.errorHanlder(func() error {
-		var err error
-		rows, err = dbs.conn.Query(ctx, "SELECT Name, Delta FROM counters")
-		return err
+	rows, err := retry2[pgx.Rows](ctx, dbs.retryPolicy, func() (pgx.Rows, error) {
+		return dbs.conn.Query(ctx, "SELECT Name, Delta FROM counters")
 	})
 
 	if err != nil {
@@ -281,13 +237,11 @@ func (dbs *DBStorage) GetAllCounter(ctx context.Context) (map[string]Counter, er
 	}
 	defer rows.Close()
 
-	err = dbs.errorHanlder(func() error {
-		_, err := pgx.ForEachRow(rows, []any{&s, &c}, func() error {
+	_, err = retry2[pgconn.CommandTag](ctx, dbs.retryPolicy, func() (pgconn.CommandTag, error) {
+		return pgx.ForEachRow(rows, []any{&s, &c}, func() error {
 			retMap[s] = Counter(c)
 			return nil
 		})
-
-		return err
 	})
 
 	if err != nil {
@@ -328,7 +282,7 @@ func (dbs *DBStorage) Updates(ctx context.Context, metrics []models.Metrics) err
 	}
 
 	err := pgx.BeginFunc(ctx, dbs.conn, func(tx pgx.Tx) error {
-		err := dbs.errorHanlder(func() error {
+		err := retry(ctx, dbs.retryPolicy, func() error {
 			return dbs.conn.SendBatch(ctx, batch).Close()
 		})
 
@@ -341,29 +295,45 @@ func (dbs *DBStorage) Updates(ctx context.Context, metrics []models.Metrics) err
 	return nil
 }
 
-func (dbs *DBStorage) errorHanlder(handelFunc func() error) error {
-	err := handelFunc()
-
-	if err == nil || dbs.retryCount <= 0 {
-		return err
+func retry(ctx context.Context, rp retryPolicy, fn func() error) error {
+	fnWithReturn := func() (struct{}, error) {
+		return struct{}{}, fn()
 	}
 
-	var tError *pgconn.PgError
-
-	if errors.As(err, &tError) && pgerrcode.IsConnectionException(tError.Code) {
-		duration := dbs.duration
-		for i := 0; i < dbs.retryCount; i++ {
-			time.Sleep(time.Duration(duration) * time.Second)
-
-			err = handelFunc()
-
-			if !(errors.As(err, &tError) && pgerrcode.IsConnectionException(tError.Code)) {
-				break
-			}
-
-			duration += dbs.durationPolicy
-		}
-	}
-
+	_, err := retry2(ctx, rp, fnWithReturn)
 	return err
+}
+
+func retry2[T any](ctx context.Context, rp retryPolicy, fn func() (T, error)) (T, error) {
+	if val1, err := fn(); err == nil || !isonnectionException(err) {
+		return val1, err
+	}
+
+	var err error
+	var ret1 T
+	duration := rp.duration
+	for i := 0; i < rp.retryCount; i++ {
+		select {
+		case <-time.NewTimer(time.Duration(duration) * time.Second).C:
+			ret1, err = fn()
+			if err == nil || !isonnectionException(err) {
+				return ret1, err
+			}
+		case <-ctx.Done():
+			return ret1, err
+		}
+
+		duration += rp.increment
+	}
+
+	return ret1, err
+}
+
+func isonnectionException(err error) bool {
+	var tError *pgconn.PgError
+	if errors.As(err, &tError) && pgerrcode.IsConnectionException(tError.Code) {
+		return true
+	}
+
+	return false
 }
