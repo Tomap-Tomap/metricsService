@@ -3,6 +3,8 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -26,7 +28,8 @@ type Repository interface {
 }
 
 type ServiceHandlers struct {
-	ms Repository
+	ms  Repository
+	key string
 }
 
 func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) {
@@ -274,12 +277,13 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 	return m, err
 }
 
-func NewServiceHandlers(ms Repository) ServiceHandlers {
-	return ServiceHandlers{ms}
+func NewServiceHandlers(ms Repository, key string) ServiceHandlers {
+	return ServiceHandlers{ms, key}
 }
 
 func ServiceRouter(sh ServiceHandlers) chi.Router {
 	r := chi.NewRouter()
+	r.Use(sh.requestHash)
 	r.Use(compresses.CompressHandle)
 	r.Use(logger.RequestLogger)
 
@@ -302,4 +306,59 @@ func ServiceRouter(sh ServiceHandlers) chi.Router {
 	})
 
 	return r
+}
+
+type (
+	hashingResponseWriter struct {
+		http.ResponseWriter
+		bytes int
+		key   string
+	}
+)
+
+func (r *hashingResponseWriter) Write(b []byte) (int, error) {
+	h := hmac.New(sha256.New, []byte(r.key))
+	h.Write(b)
+	dst := h.Sum(nil)
+
+	r.ResponseWriter.Header().Add("HashSHA256", string(dst))
+
+	size, err := r.ResponseWriter.Write(b)
+	r.bytes += size
+	return size, err
+}
+
+func (sh *ServiceHandlers) requestHash(h http.Handler) http.Handler {
+	logFn := func(w http.ResponseWriter, r *http.Request) {
+		if sh.key == "" {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		var buf bytes.Buffer
+		_, err := buf.ReadFrom(r.Body)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		hash := hmac.New(sha256.New, []byte(sh.key))
+		hash.Write(buf.Bytes())
+		dst := hash.Sum(nil)
+
+		if !hmac.Equal([]byte(r.Header.Get("HashSHA256")), dst) {
+			http.Error(w, "hash not equal", http.StatusBadRequest)
+			return
+		}
+
+		hw := hashingResponseWriter{
+			ResponseWriter: w,
+			key:            sh.key,
+		}
+
+		h.ServeHTTP(&hw, r)
+	}
+
+	return http.HandlerFunc(logFn)
 }
