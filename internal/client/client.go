@@ -2,9 +2,6 @@ package client
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,13 +9,15 @@ import (
 	"time"
 
 	"github.com/DarkOmap/metricsService/internal/compresses"
+	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/go-resty/resty/v2"
 )
 
 type Client struct {
-	addr, key   string
+	addr        string
 	restyClient *resty.Client
+	hasher      hasher.Hasher
 }
 
 func (c *Client) SendGauge(ctx context.Context, name string, value float64) error {
@@ -34,7 +33,7 @@ func (c *Client) SendGauge(ctx context.Context, name string, value float64) erro
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	c.hashingRquest(req, b)
+	c.hasher.HashingRequest(req, b)
 	resp, err := req.Post("http://" + c.addr + "/update")
 
 	if err != nil {
@@ -61,7 +60,7 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	c.hashingRquest(req, b)
+	c.hasher.HashingRequest(req, b)
 	resp, err := req.Post("http://" + c.addr + "/update")
 
 	if err != nil {
@@ -88,7 +87,7 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	c.hashingRquest(req, b)
+	c.hasher.HashingRequest(req, b)
 	resp, err := req.Post("http://" + c.addr + "/updates")
 
 	if err != nil {
@@ -102,16 +101,6 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 	return nil
 }
 
-func (c *Client) hashingRquest(req *resty.Request, body []byte) {
-	if c.key == "" {
-		return
-	}
-
-	h := hmac.New(sha256.New, []byte(c.key))
-	h.Write(body)
-	req.SetHeader("HashSHA256", hex.EncodeToString(h.Sum(nil)))
-}
-
 func NewClient(addr, key string) *Client {
 	client := resty.New().
 		AddRetryCondition(func(r *resty.Response, err error) bool {
@@ -120,5 +109,5 @@ func NewClient(addr, key string) *Client {
 		SetRetryCount(3).
 		SetRetryWaitTime(1 * time.Second).
 		SetRetryMaxWaitTime(9 * time.Second)
-	return &Client{addr, key, client}
+	return &Client{addr, client, hasher.NewHasher([]byte(key))}
 }

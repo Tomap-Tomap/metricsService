@@ -3,9 +3,6 @@ package handlers
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -13,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/DarkOmap/metricsService/internal/compresses"
+	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/DarkOmap/metricsService/internal/storage"
@@ -29,8 +27,7 @@ type Repository interface {
 }
 
 type ServiceHandlers struct {
-	ms  Repository
-	key string
+	ms Repository
 }
 
 func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) {
@@ -278,14 +275,15 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 	return m, err
 }
 
-func NewServiceHandlers(ms Repository, key string) ServiceHandlers {
-	return ServiceHandlers{ms, key}
+func NewServiceHandlers(ms Repository) ServiceHandlers {
+	return ServiceHandlers{ms}
 }
 
-func ServiceRouter(sh ServiceHandlers) chi.Router {
+func ServiceRouter(sh ServiceHandlers, key string) chi.Router {
+	hasher := hasher.NewHasher([]byte(key))
 	r := chi.NewRouter()
 	r.Use(logger.RequestLogger)
-	r.Use(sh.requestHash)
+	r.Use(hasher.RequestHash)
 	r.Use(compresses.CompressHandle)
 
 	r.Route("/", func(r chi.Router) {
@@ -307,68 +305,4 @@ func ServiceRouter(sh ServiceHandlers) chi.Router {
 	})
 
 	return r
-}
-
-type (
-	hashingResponseWriter struct {
-		http.ResponseWriter
-		bytes int
-		key   string
-	}
-)
-
-func (r *hashingResponseWriter) Write(b []byte) (int, error) {
-	h := hmac.New(sha256.New, []byte(r.key))
-	h.Write(b)
-	dst := h.Sum(nil)
-
-	r.ResponseWriter.Header().Add("HashSHA256", hex.EncodeToString(dst))
-
-	size, err := r.ResponseWriter.Write(b)
-	r.bytes += size
-	return size, err
-}
-
-func (sh *ServiceHandlers) requestHash(h http.Handler) http.Handler {
-	logFn := func(w http.ResponseWriter, r *http.Request) {
-		hashHeader := r.Header.Get("HashSHA256")
-
-		if sh.key == "" || hashHeader == "" {
-			h.ServeHTTP(w, r)
-			return
-		}
-
-		var buf bytes.Buffer
-		_, err := buf.ReadFrom(r.Body)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		r.Body = io.NopCloser(&buf)
-		hash := hmac.New(sha256.New, []byte(sh.key))
-		hash.Write(buf.Bytes())
-		dst := hash.Sum(nil)
-		hh, err := hex.DecodeString(hashHeader)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if !hmac.Equal(hh, dst) {
-			http.Error(w, "hash not equal", http.StatusBadRequest)
-			return
-		}
-
-		hw := hashingResponseWriter{
-			ResponseWriter: w,
-			key:            sh.key,
-		}
-
-		h.ServeHTTP(&hw, r)
-	}
-
-	return http.HandlerFunc(logFn)
 }
