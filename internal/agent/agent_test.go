@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewAgent(t *testing.T) {
-	testClient := client.NewClient("test")
+	testClient := client.NewClient("test", "")
 
 	type args struct {
 		client         *client.Client
