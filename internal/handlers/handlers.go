@@ -331,7 +331,9 @@ func (r *hashingResponseWriter) Write(b []byte) (int, error) {
 
 func (sh *ServiceHandlers) requestHash(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
-		if sh.key == "" {
+		hashHeader := r.Header.Get("HashSHA256")
+
+		if sh.key == "" || hashHeader == "" {
 			h.ServeHTTP(w, r)
 			return
 		}
@@ -348,7 +350,7 @@ func (sh *ServiceHandlers) requestHash(h http.Handler) http.Handler {
 		hash := hmac.New(sha256.New, []byte(sh.key))
 		hash.Write(buf.Bytes())
 		dst := hash.Sum(nil)
-		hh, err := hex.DecodeString(r.Header.Get("HashSHA256"))
+		hh, err := hex.DecodeString(hashHeader)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
