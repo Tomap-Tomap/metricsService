@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -108,7 +109,7 @@ func (c *Client) hashingRquest(req *resty.Request, body []byte) {
 
 	h := hmac.New(sha256.New, []byte(c.key))
 	h.Write(body)
-	req.SetHeader("HashSHA256", string(h.Sum(nil)))
+	req.SetHeader("HashSHA256", hex.EncodeToString(h.Sum(nil)))
 }
 
 func NewClient(addr, key string) *Client {

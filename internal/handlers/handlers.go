@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -283,9 +284,9 @@ func NewServiceHandlers(ms Repository, key string) ServiceHandlers {
 
 func ServiceRouter(sh ServiceHandlers) chi.Router {
 	r := chi.NewRouter()
+	r.Use(logger.RequestLogger)
 	r.Use(sh.requestHash)
 	r.Use(compresses.CompressHandle)
-	r.Use(logger.RequestLogger)
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", sh.all)
@@ -321,7 +322,7 @@ func (r *hashingResponseWriter) Write(b []byte) (int, error) {
 	h.Write(b)
 	dst := h.Sum(nil)
 
-	r.ResponseWriter.Header().Add("HashSHA256", string(dst))
+	r.ResponseWriter.Header().Add("HashSHA256", hex.EncodeToString(dst))
 
 	size, err := r.ResponseWriter.Write(b)
 	r.bytes += size
@@ -343,11 +344,18 @@ func (sh *ServiceHandlers) requestHash(h http.Handler) http.Handler {
 			return
 		}
 
+		r.Body = io.NopCloser(&buf)
 		hash := hmac.New(sha256.New, []byte(sh.key))
 		hash.Write(buf.Bytes())
 		dst := hash.Sum(nil)
+		hh, err := hex.DecodeString(r.Header.Get("HashSHA256"))
 
-		if !hmac.Equal([]byte(r.Header.Get("HashSHA256")), dst) {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if !hmac.Equal(hh, dst) {
 			http.Error(w, "hash not equal", http.StatusBadRequest)
 			return
 		}
