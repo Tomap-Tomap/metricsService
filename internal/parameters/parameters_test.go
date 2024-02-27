@@ -15,6 +15,7 @@ func TestParseFlagsAgent(t *testing.T) {
 		wantReportInterval uint
 		wantPollInterval   uint
 		wantKey            string
+		wantRL             uint
 	}{
 		{
 			name:               "test env",
@@ -23,6 +24,7 @@ func TestParseFlagsAgent(t *testing.T) {
 			wantReportInterval: 10,
 			wantPollInterval:   10,
 			wantKey:            "key",
+			wantRL:             5,
 		},
 		{
 			name:               "test flags",
@@ -31,6 +33,7 @@ func TestParseFlagsAgent(t *testing.T) {
 			wantReportInterval: 100,
 			wantPollInterval:   100,
 			wantKey:            "key",
+			wantRL:             5,
 		},
 		{
 			name:               "test default",
@@ -39,6 +42,7 @@ func TestParseFlagsAgent(t *testing.T) {
 			wantReportInterval: 10,
 			wantPollInterval:   2,
 			wantKey:            "",
+			wantRL:             10,
 		},
 	}
 	for _, tt := range tests {
@@ -63,10 +67,11 @@ func setEnv() {
 	os.Setenv("REPORT_INTERVAL", "10")
 	os.Setenv("POLL_INTERVAL", "10")
 	os.Setenv("KEY", "key")
+	os.Setenv("RATE_LIMIT", "5")
 }
 
 func setFlags() {
-	os.Args = []string{"test", "-a=testFlags", "-r=100", "-p=100", "-k=key"}
+	os.Args = []string{"test", "-a=testFlags", "-r=100", "-p=100", "-k=key", "-l=5"}
 }
 
 func delParameters() {

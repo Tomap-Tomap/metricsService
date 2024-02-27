@@ -7,8 +7,8 @@ import (
 )
 
 type AgentParameters struct {
-	ListenAddr, Key              string
-	ReportInterval, PollInterval uint
+	ListenAddr, Key                         string
+	ReportInterval, PollInterval, RateLimit uint
 }
 
 func ParseFlagsAgent() (p AgentParameters) {
@@ -17,6 +17,7 @@ func ParseFlagsAgent() (p AgentParameters) {
 	f.StringVar(&p.Key, "k", "", "hash key")
 	f.UintVar(&p.ReportInterval, "r", 10, "report interval")
 	f.UintVar(&p.PollInterval, "p", 2, "poll interval")
+	f.UintVar(&p.RateLimit, "l", 10, "rate limit")
 	f.Parse(os.Args[1:])
 
 	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
@@ -40,6 +41,14 @@ func ParseFlagsAgent() (p AgentParameters) {
 
 		if err == nil {
 			p.PollInterval = uint(intPI)
+		}
+	}
+
+	if envRL := os.Getenv("RATE_LIMIT"); envRL != "" {
+		intRL, err := strconv.ParseUint(envRL, 10, 32)
+
+		if err == nil {
+			p.RateLimit = uint(intRL)
 		}
 	}
 
