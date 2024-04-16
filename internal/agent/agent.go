@@ -28,6 +28,17 @@ type Agent struct {
 	CPUutilization                          float64
 }
 
+func NewAgent(client *client.Client, reportInterval, pollInterval, rateLimit uint) (a *Agent) {
+	a = &Agent{reportInterval: reportInterval, pollInterval: pollInterval, client: client,
+		rateLimit: rateLimit,
+	}
+	runtime.ReadMemStats(&a.ms)
+	a.vm, _ = mem.VirtualMemory()
+	CPUutilization, _ := cpu.Percent(0, false)
+	a.CPUutilization = CPUutilization[0]
+	return
+}
+
 func (a *Agent) Run() error {
 	jobs := make(chan func() error, a.rateLimit)
 	defer close(jobs)
@@ -138,15 +149,4 @@ func worker(jobs <-chan func() error) {
 			)
 		}
 	}
-}
-
-func NewAgent(client *client.Client, reportInterval, pollInterval, rateLimit uint) (a *Agent) {
-	a = &Agent{reportInterval: reportInterval, pollInterval: pollInterval, client: client,
-		rateLimit: rateLimit,
-	}
-	runtime.ReadMemStats(&a.ms)
-	a.vm, _ = mem.VirtualMemory()
-	CPUutilization, _ := cpu.Percent(0, false)
-	a.CPUutilization = CPUutilization[0]
-	return
 }

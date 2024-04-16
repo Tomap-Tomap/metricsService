@@ -7,8 +7,11 @@ import (
 )
 
 type AgentParameters struct {
-	ListenAddr, Key                         string
-	ReportInterval, PollInterval, RateLimit uint
+	ListenAddr     string
+	Key            string
+	ReportInterval uint
+	RateLimit      uint
+	PollInterval   uint
 }
 
 func ParseFlagsAgent() (p AgentParameters) {
@@ -56,10 +59,12 @@ func ParseFlagsAgent() (p AgentParameters) {
 }
 
 type ServerParameters struct {
-	FlagRunAddr, FileStoragePath string
-	DataBaseDSN, Key             string
-	StoreInterval                uint
-	Restore                      bool
+	FlagRunAddr     string
+	FileStoragePath string
+	DataBaseDSN     string
+	Key             string
+	StoreInterval   uint
+	Restore         bool
 }
 
 func ParseFlagsServer() (p ServerParameters) {
