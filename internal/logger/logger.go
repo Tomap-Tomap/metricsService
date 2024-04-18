@@ -1,7 +1,9 @@
 package logger
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -23,7 +25,7 @@ func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 		r.WriteHeader(http.StatusOK)
 	}
 
-	if r.code != http.StatusOK {
+	if r.code >= 300 {
 		r.error = string(b)
 	}
 
@@ -67,10 +69,16 @@ func RequestLogger(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
+		var buf bytes.Buffer
+		buf.ReadFrom(r.Body)
+
 		Log.Info("Got incoming HTTP request",
 			zap.String("uri", r.RequestURI),
 			zap.String("method", r.Method),
+			zap.String("body", buf.String()),
 		)
+
+		r.Body = io.NopCloser(&buf)
 
 		lw := loggingResponseWriter{
 			ResponseWriter: w,
