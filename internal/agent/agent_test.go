@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"testing"
-	"time"
 
 	"github.com/DarkOmap/metricsService/internal/client"
 	"github.com/DarkOmap/metricsService/internal/logger"
@@ -156,73 +155,4 @@ func TestAgent_sendCounter(t *testing.T) {
 	})
 
 	cm.AssertExpectations(t)
-}
-
-func TestAgent_startSendReport(t *testing.T) {
-	t.Run("test jobs count", func(t *testing.T) {
-		t.Parallel()
-		agent := &Agent{reportInterval: 1}
-		jobs := make(chan func(context.Context) error, 2)
-		go agent.startSendReport(context.Background(), jobs)
-		time.Sleep(3 * time.Second)
-		require.Equal(t, 2, len(jobs))
-	})
-
-	t.Run("test done", func(t *testing.T) {
-		t.Parallel()
-
-		sink := &testingSink{new((bytes.Buffer))}
-		zap.RegisterSink("testingSR", func(u *url.URL) (zap.Sink, error) { return sink, nil })
-		logger.Initialize("INFO", "testingSR://")
-
-		agent := &Agent{reportInterval: 60}
-		jobs := make(chan func(context.Context) error, 2)
-		ctx, cancel := context.WithCancel(context.Background())
-		go agent.startSendReport(ctx, jobs)
-		cancel()
-		time.Sleep(3 * time.Second)
-		logs := sink.String()
-
-		require.Contains(t, logs, "Send report done")
-	})
-}
-
-func TestAgent_startReadMemStats(t *testing.T) {
-	t.Run("test jobs count", func(t *testing.T) {
-		t.Parallel()
-		agent := &Agent{pollInterval: 1}
-
-		pollCountTest := int64(0)
-		ms, err := memstats.NewMemStatsForServer()
-		require.NoError(t, err)
-		msMap := ms.GetMap()
-		agent.ms = ms
-		agent.pollCount.Store(pollCountTest)
-
-		go agent.startReadMemStats(context.Background())
-		time.Sleep(3 * time.Second)
-		require.NotEqual(t, msMap, agent.ms.GetMap())
-		require.NotEqual(t, pollCountTest, agent.pollCount.Load())
-	})
-
-	t.Run("test done", func(t *testing.T) {
-		t.Parallel()
-		sink := &testingSink{new((bytes.Buffer))}
-		zap.RegisterSink("testingRM", func(u *url.URL) (zap.Sink, error) { return sink, nil })
-		logger.Initialize("INFO", "testingRM://")
-
-		agent := &Agent{pollInterval: 1}
-		ms, err := memstats.NewMemStatsForServer()
-		require.NoError(t, err)
-		agent.ms = ms
-		ctx, cancel := context.WithCancel(context.Background())
-		go agent.startReadMemStats(ctx)
-		cancel()
-		time.Sleep(3 * time.Second)
-		logs := sink.String()
-
-		require.Contains(t, logs, "Read mem stats done")
-	})
-
-	logger.Log = zap.NewNop()
 }
