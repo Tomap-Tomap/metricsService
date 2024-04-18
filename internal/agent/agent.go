@@ -3,108 +3,68 @@ package agent
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"os/signal"
-	"runtime"
 	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/DarkOmap/metricsService/internal/client"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/memstats"
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
-type Agent struct {
-	reportInterval, pollInterval, rateLimit uint
-	client                                  *client.Client
-	pollCount                               atomic.Int64
-	ms                                      runtime.MemStats
-	vm                                      *mem.VirtualMemoryStat
-	CPUutilization                          float64
+type Client interface {
+	SendBatch(ctx context.Context, batch map[string]float64) error
+	SendCounter(ctx context.Context, name string, delta int64) error
 }
 
-func NewAgent(client *client.Client, reportInterval, pollInterval, rateLimit uint) (a *Agent) {
-	a = &Agent{reportInterval: reportInterval, pollInterval: pollInterval, client: client,
-		rateLimit: rateLimit,
+type Agent struct {
+	reportInterval uint
+	pollInterval   uint
+	rateLimit      uint
+	client         Client
+	pollCount      atomic.Int64
+	ms             *memstats.MemStatsForServer
+}
+
+func NewAgent(client Client, reportInterval, pollInterval, rateLimit uint) (*Agent, error) {
+	a := &Agent{reportInterval: reportInterval,
+		pollInterval: pollInterval,
+		rateLimit:    rateLimit,
+		client:       client}
+
+	ms, err := memstats.NewMemStatsForServer()
+
+	if err != nil {
+		return nil, fmt.Errorf("create mem stats")
 	}
-	runtime.ReadMemStats(&a.ms)
-	a.vm, _ = mem.VirtualMemory()
-	CPUutilization, _ := cpu.Percent(0, false)
-	a.CPUutilization = CPUutilization[0]
-	return
+
+	a.ms = ms
+
+	return a, nil
 }
 
 func (a *Agent) Run() error {
-	jobs := make(chan func() error, a.rateLimit)
-	defer close(jobs)
-
-	for w := uint(1); w <= a.rateLimit; w++ {
-		go worker(jobs)
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
+	jobs := make(chan func(context.Context) error, a.rateLimit)
+	defer close(jobs)
+	for w := 1; w <= cap(jobs); w++ {
+		go worker(egCtx, jobs)
+	}
+
 	eg.Go(func() error {
-		logger.Log.Info("Send report start")
-		for {
-			select {
-			case <-time.After(time.Duration(a.reportInterval) * time.Second):
-				a.sendReport(egCtx, jobs)
-			case <-egCtx.Done():
-				logger.Log.Info("Send report done")
-				return nil
-			}
-		}
+		err := a.startSendReport(egCtx, jobs)
+		return err
 	})
 
 	eg.Go(func() error {
-		logger.Log.Info("Read mem stats start")
-		for {
-			select {
-			case <-time.After(time.Duration(a.pollInterval) * time.Second):
-				runtime.ReadMemStats(&a.ms)
-				a.pollCount.Add(1)
-			case <-ctx.Done():
-				logger.Log.Info("Read mem stats done")
-				return nil
-			}
-		}
-	})
-
-	eg.Go(func() error {
-		logger.Log.Info("Read virtual memory start")
-		for {
-			select {
-			case <-time.After(time.Duration(a.pollInterval) * time.Second):
-				var err error
-				a.vm, err = mem.VirtualMemory()
-
-				if err != nil {
-					return err
-				}
-
-				CPUutilization, err := cpu.Percent(0, false)
-
-				if err != nil {
-					return err
-				}
-
-				a.CPUutilization = CPUutilization[0]
-
-				a.pollCount.Add(1)
-			case <-ctx.Done():
-				logger.Log.Info("Read virtual memory done")
-				return nil
-			}
-		}
+		err := a.startReadMemStats(egCtx)
+		return err
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -115,32 +75,52 @@ func (a *Agent) Run() error {
 	return nil
 }
 
-func (a *Agent) sendReport(ctx context.Context, jobs chan<- func() error) {
-	jobs <- func() error {
-		msForServer := memstats.GetMemStatsForServer(&a.ms)
-		msForServer["RandomValue"] = rand.Float64()
-
-		return a.client.SendBatch(ctx, msForServer)
-	}
-
-	jobs <- func() error {
-		return a.client.SendCounter(ctx, "PollCount", a.pollCount.Load())
-	}
-
-	jobs <- func() error {
-		vmForServer := memstats.GetVirtualMemoryForServer(a.vm)
-
-		return a.client.SendBatch(ctx, vmForServer)
-	}
-
-	jobs <- func() error {
-		return a.client.SendBatch(ctx, map[string]float64{"CPUutilization1": a.CPUutilization})
+func (a *Agent) startSendReport(ctx context.Context, jobs chan<- func(context.Context) error) error {
+	logger.Log.Info("Send report start")
+	for {
+		select {
+		case <-time.After(time.Duration(a.reportInterval) * time.Second):
+			jobs <- a.sendBatch
+			jobs <- a.sendCounter
+		case <-ctx.Done():
+			logger.Log.Info("Send report done")
+			return nil
+		}
 	}
 }
 
-func worker(jobs <-chan func() error) {
+func (a *Agent) startReadMemStats(ctx context.Context) error {
+	logger.Log.Info("Read mem stats start")
+	for {
+		select {
+		case <-time.After(time.Duration(a.pollInterval) * time.Second):
+			err := a.ms.ReadMemStats()
+
+			if err != nil {
+				return fmt.Errorf("read mem stats: %w", err)
+			}
+
+			a.pollCount.Add(1)
+		case <-ctx.Done():
+			logger.Log.Info("Read mem stats done")
+			return nil
+		}
+	}
+}
+
+func (a *Agent) sendBatch(ctx context.Context) error {
+	msForServer := a.ms.GetMap()
+
+	return a.client.SendBatch(ctx, msForServer)
+}
+
+func (a *Agent) sendCounter(ctx context.Context) error {
+	return a.client.SendCounter(ctx, "PollCount", a.pollCount.Load())
+}
+
+func worker(ctx context.Context, jobs <-chan func(context.Context) error) {
 	for j := range jobs {
-		err := j()
+		err := j(ctx)
 
 		if err != nil {
 			logger.Log.Warn(

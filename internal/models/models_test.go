@@ -487,3 +487,65 @@ func Test_gaugeMetricsByStrings(t *testing.T) {
 		})
 	}
 }
+
+func TestGetModelsSliceByJSON(t *testing.T) {
+	t.Run("error test", func(t *testing.T) {
+		invalidJSON := `{"test":"test"}`
+		_, err := GetModelsSliceByJSON([]byte(invalidJSON))
+
+		require.Error(t, err)
+	})
+
+	t.Run("positive test", func(t *testing.T) {
+		delta := int64(1)
+		want := []Metrics{Metrics{ID: "test", MType: "counter", Delta: &delta}}
+		json := `[{"id":"test", "type": "counter", "delta": 1}]`
+		got, err := GetModelsSliceByJSON([]byte(json))
+
+		require.NoError(t, err)
+		require.Equal(t, want, got)
+	})
+}
+
+func TestGetGaugesSliceByMap(t *testing.T) {
+	var (
+		gauge1 float64 = 21
+		gauge2 float64 = 33
+		gauge3 float64 = 10
+	)
+	tests := []struct {
+		name string
+		args map[string]float64
+		want []Metrics
+	}{
+		{
+			name: "positive test #1",
+			args: map[string]float64{"test": 21},
+			want: []Metrics{{ID: "test", MType: "gauge", Value: &gauge1}},
+		},
+		{
+			name: "positive test #2",
+			args: map[string]float64{"test": 21, "test2": 33},
+			want: []Metrics{
+				{ID: "test", MType: "gauge", Value: &gauge1},
+				{ID: "test2", MType: "gauge", Value: &gauge2},
+			},
+		},
+		{
+			name: "positive test #3",
+			args: map[string]float64{"test": 21, "test2": 33, "test3": 10},
+			want: []Metrics{
+				{ID: "test", MType: "gauge", Value: &gauge1},
+				{ID: "test2", MType: "gauge", Value: &gauge2},
+				{ID: "test3", MType: "gauge", Value: &gauge3},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetGaugesSliceByMap(tt.args)
+
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
