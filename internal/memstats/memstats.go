@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"sync"
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
 type MemStatsForServer struct {
+	sync.RWMutex
 	runtime.MemStats
 	*mem.VirtualMemoryStat
 	CPUutilization float64
@@ -27,6 +29,8 @@ func NewMemStatsForServer() (*MemStatsForServer, error) {
 }
 
 func (ms *MemStatsForServer) ReadMemStats() error {
+	ms.Lock()
+	defer ms.Unlock()
 	var err error
 
 	runtime.ReadMemStats(&ms.MemStats)
@@ -50,6 +54,8 @@ func (ms *MemStatsForServer) ReadMemStats() error {
 }
 
 func (ms *MemStatsForServer) GetMap() map[string]float64 {
+	ms.RLock()
+	defer ms.RUnlock()
 	return map[string]float64{
 		"Alloc":           float64(ms.Alloc),
 		"BuckHashSys":     float64(ms.BuckHashSys),
