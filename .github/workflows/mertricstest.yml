@@ -65,7 +65,7 @@ jobs:
       - name: "Code increment #1"
         if: |
           github.ref == 'refs/heads/main' ||
-          github.head_ref =` ^iter[1-16]$
+          github.head_ref =~ ^iter[1-16]$
         run: |
           metricstest -test.v -test.run=^TestIteration1$ \
             -binary-path=cmd/server/server
