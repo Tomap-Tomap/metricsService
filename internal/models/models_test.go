@@ -502,7 +502,6 @@ func TestGetModelsSliceByJSON(t *testing.T) {
 			ID:    "test",
 			MType: "counter",
 			Delta: &delta,
-			Value: new(float64),
 		}}
 		json := `[{"id":"test", "type": "counter", "delta": 1}]`
 		got, err := GetModelsSliceByJSON([]byte(json))
