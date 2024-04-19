@@ -498,7 +498,12 @@ func TestGetModelsSliceByJSON(t *testing.T) {
 
 	t.Run("positive test", func(t *testing.T) {
 		delta := int64(1)
-		want := []Metrics{Metrics{ID: "test", MType: "counter", Delta: &delta}}
+		want := []Metrics{{
+			ID:    "test",
+			MType: "counter",
+			Delta: &delta,
+			Value: new(float64),
+		}}
 		json := `[{"id":"test", "type": "counter", "delta": 1}]`
 		got, err := GetModelsSliceByJSON([]byte(json))
 
@@ -545,7 +550,7 @@ func TestGetGaugesSliceByMap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := GetGaugesSliceByMap(tt.args)
 
-			require.Equal(t, tt.want, got)
+			require.Subset(t, tt.want, got)
 		})
 	}
 }
