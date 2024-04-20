@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,7 +60,7 @@ func (sm *StorageMockedObject) PingDB(ctx context.Context) error {
 }
 
 func (sm *StorageMockedObject) Updates(ctx context.Context, metrics []models.Metrics) error {
-	args := sm.Called()
+	args := sm.Called(metrics)
 
 	return args.Error(0)
 }
@@ -526,4 +527,57 @@ func TestServiceHandlers_ping(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, res.StatusCode())
 	})
 	ms.AssertExpectations(t)
+}
+
+func TestServiceHandlers_updates(t *testing.T) {
+	ms := new(StorageMockedObject)
+	sh := NewServiceHandlers(ms)
+	r := ServiceRouter(sh, "")
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	t.Run("bad body", func(t *testing.T) {
+		res := testRequest(t, srv, http.MethodPost, "/updates", "")
+		assert.Equal(t, http.StatusBadRequest, res.StatusCode())
+	})
+
+	badModelJSON := `
+	[
+		{
+			"id": "error",
+			"type": "counter",
+			"delta": 1
+		}
+	]
+	`
+	badModel, err := models.NewMetricsSliceByJSON([]byte(badModelJSON))
+	require.NoError(t, err)
+
+	ms.On("Updates", badModel).Return(fmt.Errorf("test error"))
+
+	goodModelJSON := `
+	[
+		{
+			"id": "error",
+			"type": "counter",
+			"delta": 2
+		}
+	]
+	`
+
+	goodModel, err := models.NewMetricsSliceByJSON([]byte(goodModelJSON))
+	require.NoError(t, err)
+
+	ms.On("Updates", goodModel).Return(nil)
+
+	t.Run("test 500", func(t *testing.T) {
+		res := testRequest(t, srv, http.MethodPost, "/updates", badModelJSON)
+		assert.Equal(t, http.StatusInternalServerError, res.StatusCode())
+	})
+
+	t.Run("test 200", func(t *testing.T) {
+		res := testRequest(t, srv, http.MethodPost, "/updates", goodModelJSON)
+		assert.Equal(t, http.StatusOK, res.StatusCode())
+	})
 }

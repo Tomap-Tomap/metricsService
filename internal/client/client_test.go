@@ -113,3 +113,37 @@ func TestSendCounter(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestClient_SendBatch(t *testing.T) {
+	t.Run("not OK test", func(t *testing.T) {
+		hf := func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "test error", http.StatusBadRequest)
+		}
+
+		ts := httptest.NewServer(http.HandlerFunc(hf))
+		defer ts.Close()
+
+		c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
+		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
+		assert.Error(t, err)
+	})
+
+	t.Run("OK test", func(t *testing.T) {
+		hf := func(w http.ResponseWriter, r *http.Request) {
+		}
+
+		ts := httptest.NewServer(http.HandlerFunc(hf))
+		defer ts.Close()
+
+		c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
+		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
+		assert.NoError(t, err)
+	})
+
+	t.Run("test brocken server", func(t *testing.T) {
+		c := NewClient("test", "")
+		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
+
+		assert.Error(t, err)
+	})
+}
