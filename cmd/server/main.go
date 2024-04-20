@@ -11,7 +11,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -39,12 +39,12 @@ func main() {
 	if p.DataBaseDSN != "" {
 		logger.Log.Info("Create database storage")
 
-		conn, err := pgx.Connect(ctx, p.DataBaseDSN)
+		conn, err := pgxpool.New(ctx, p.DataBaseDSN)
 
 		if err != nil {
 			logger.Log.Fatal("Connect to database", zap.Error(err))
 		}
-		defer conn.Close(ctx)
+		defer conn.Close()
 
 		ms, err = storage.NewDBStorage(conn)
 

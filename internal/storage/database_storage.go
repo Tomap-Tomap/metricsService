@@ -10,10 +10,11 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type DBStorage struct {
-	conn        *pgx.Conn
+	conn        *pgxpool.Pool
 	retryPolicy retryPolicy
 }
 
@@ -23,7 +24,7 @@ type retryPolicy struct {
 	increment  int
 }
 
-func NewDBStorage(conn *pgx.Conn) (*DBStorage, error) {
+func NewDBStorage(conn *pgxpool.Pool) (*DBStorage, error) {
 	rp := retryPolicy{3, 1, 2}
 	dbs := &DBStorage{conn: conn, retryPolicy: rp}
 

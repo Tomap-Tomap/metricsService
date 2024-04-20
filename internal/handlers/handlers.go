@@ -282,9 +282,9 @@ func NewServiceHandlers(ms Repository) ServiceHandlers {
 func ServiceRouter(sh ServiceHandlers, key string) chi.Router {
 	hasher := hasher.NewHasher([]byte(key))
 	r := chi.NewRouter()
-	r.Use(logger.RequestLogger)
 	r.Use(hasher.RequestHash)
 	r.Use(compresses.CompressHandle)
+	r.Use(logger.RequestLogger)
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", sh.all)
