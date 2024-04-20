@@ -10,38 +10,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type (
-	loggingResponseWriter struct {
-		http.ResponseWriter
-		wroteHeader bool
-		code        int
-		bytes       int
-		error       string
-	}
-)
-
-func (r *loggingResponseWriter) Write(b []byte) (int, error) {
-	if !r.wroteHeader {
-		r.WriteHeader(http.StatusOK)
-	}
-
-	if r.code >= 300 {
-		r.error = string(b)
-	}
-
-	size, err := r.ResponseWriter.Write(b)
-	r.bytes += size
-	return size, err
-}
-
-func (r *loggingResponseWriter) WriteHeader(statusCode int) {
-	if !r.wroteHeader {
-		r.code = statusCode
-		r.wroteHeader = true
-		r.ResponseWriter.WriteHeader(statusCode)
-	}
-}
-
 var Log *zap.Logger = zap.NewNop()
 
 func Initialize(level string, outputPath string) error {
@@ -63,6 +31,36 @@ func Initialize(level string, outputPath string) error {
 	Log = zl
 
 	return nil
+}
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	wroteHeader bool
+	code        int
+	bytes       int
+	error       string
+}
+
+func (r *loggingResponseWriter) Write(b []byte) (int, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
+	}
+
+	if r.code >= 300 {
+		r.error = string(b)
+	}
+
+	size, err := r.ResponseWriter.Write(b)
+	r.bytes += size
+	return size, err
+}
+
+func (r *loggingResponseWriter) WriteHeader(statusCode int) {
+	if !r.wroteHeader {
+		r.code = statusCode
+		r.wroteHeader = true
+		r.ResponseWriter.WriteHeader(statusCode)
+	}
 }
 
 func RequestLogger(h http.Handler) http.Handler {

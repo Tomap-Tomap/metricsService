@@ -551,7 +551,7 @@ func TestServiceHandlers_updates(t *testing.T) {
 		}
 	]
 	`
-	badModel, err := models.GetModelsSliceByJSON([]byte(badModelJSON))
+	badModel, err := models.NewMetricsSliceByJSON([]byte(badModelJSON))
 	require.NoError(t, err)
 
 	ms.On("Updates", badModel).Return(fmt.Errorf("test error"))
@@ -566,7 +566,7 @@ func TestServiceHandlers_updates(t *testing.T) {
 	]
 	`
 
-	goodModel, err := models.GetModelsSliceByJSON([]byte(goodModelJSON))
+	goodModel, err := models.NewMetricsSliceByJSON([]byte(goodModelJSON))
 	require.NoError(t, err)
 
 	ms.On("Updates", goodModel).Return(nil)

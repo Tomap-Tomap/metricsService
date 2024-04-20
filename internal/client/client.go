@@ -20,6 +20,17 @@ type Client struct {
 	hasher      hasher.Hasher
 }
 
+func NewClient(addr, key string) *Client {
+	client := resty.New().
+		AddRetryCondition(func(r *resty.Response, err error) bool {
+			return errors.Is(err, syscall.ECONNREFUSED)
+		}).
+		SetRetryCount(3).
+		SetRetryWaitTime(1 * time.Second).
+		SetRetryMaxWaitTime(9 * time.Second)
+	return &Client{addr, client, hasher.NewHasher([]byte(key))}
+}
+
 func (c *Client) SendGauge(ctx context.Context, name string, value float64) error {
 	m := models.NewMetricsForGauge(name, value)
 
@@ -99,15 +110,4 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 	}
 
 	return nil
-}
-
-func NewClient(addr, key string) *Client {
-	client := resty.New().
-		AddRetryCondition(func(r *resty.Response, err error) bool {
-			return errors.Is(err, syscall.ECONNREFUSED)
-		}).
-		SetRetryCount(3).
-		SetRetryWaitTime(1 * time.Second).
-		SetRetryMaxWaitTime(9 * time.Second)
-	return &Client{addr, client, hasher.NewHasher([]byte(key))}
 }

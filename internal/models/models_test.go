@@ -191,7 +191,7 @@ func TestNewModelByURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewModelByStrings(tt.args.name, tt.args.valueType, tt.args.value)
+			got, err := NewMetricsByStrings(tt.args.name, tt.args.valueType, tt.args.value)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -260,7 +260,7 @@ func TestNewModelsByJSON(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewModelsByJSON(tt.args.j)
+			got, err := NewMetricsByJSON(tt.args.j)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -491,7 +491,7 @@ func Test_gaugeMetricsByStrings(t *testing.T) {
 func TestGetModelsSliceByJSON(t *testing.T) {
 	t.Run("error test", func(t *testing.T) {
 		invalidJSON := `{"test":"test"}`
-		_, err := GetModelsSliceByJSON([]byte(invalidJSON))
+		_, err := NewMetricsSliceByJSON([]byte(invalidJSON))
 
 		require.Error(t, err)
 	})
@@ -504,7 +504,7 @@ func TestGetModelsSliceByJSON(t *testing.T) {
 			Delta: &delta,
 		}}
 		json := `[{"id":"test", "type": "counter", "delta": 1}]`
-		got, err := GetModelsSliceByJSON([]byte(json))
+		got, err := NewMetricsSliceByJSON([]byte(json))
 
 		require.NoError(t, err)
 		require.Equal(t, want, got)

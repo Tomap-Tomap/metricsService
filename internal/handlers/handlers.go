@@ -30,6 +30,10 @@ type ServiceHandlers struct {
 	ms Repository
 }
 
+func NewServiceHandlers(ms Repository) ServiceHandlers {
+	return ServiceHandlers{ms}
+}
+
 func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	w.Header().Add("Content-Type", "charset=utf-8")
@@ -63,7 +67,7 @@ func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.Header().Add("Content-Type", "charset=utf-8")
 
-	m, err := models.NewModelByStrings(
+	m, err := models.NewMetricsByStrings(
 		chi.URLParam(r, "name"),
 		chi.URLParam(r, "type"),
 		chi.URLParam(r, "value"),
@@ -242,7 +246,7 @@ func (sh *ServiceHandlers) updates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err := models.GetModelsSliceByJSON(buf.Bytes())
+	m, err := models.NewMetricsSliceByJSON(buf.Bytes())
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -266,17 +270,13 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 		return nil, err
 	}
 
-	m, err := models.NewModelsByJSON(buf.Bytes())
+	m, err := models.NewMetricsByJSON(buf.Bytes())
 
 	if err != nil {
 		return nil, err
 	}
 
 	return m, err
-}
-
-func NewServiceHandlers(ms Repository) ServiceHandlers {
-	return ServiceHandlers{ms}
 }
 
 func ServiceRouter(sh ServiceHandlers, key string) chi.Router {
