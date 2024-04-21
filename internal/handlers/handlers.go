@@ -1,3 +1,4 @@
+// Package handlers contain handlers for the server.
 package handlers
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// Repository it's type for work with storages.
 type Repository interface {
 	UpdateByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error)
 	ValueByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error)
@@ -26,6 +28,15 @@ type Repository interface {
 	Updates(ctx context.Context, metrics []models.Metrics) error
 }
 
+// ServiceHandlers contains handlers for server.
+// Avalible handlers:
+// updateByJSON - do update storage by json data.
+// updateByURL - do update storage by data on url.
+// valueByJSON - return storage data by JSON query.
+// valueByURL - return storage data by url query.
+// all - return all storage data by HTML format.
+// ping - check storage work.
+// updates - do multiple updates storage data by JSON.
 type ServiceHandlers struct {
 	ms Repository
 }
@@ -279,13 +290,13 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 	return m, err
 }
 
+// ServiceRouter return router for run server.
 func ServiceRouter(sh ServiceHandlers, key string) chi.Router {
 	hasher := hasher.NewHasher([]byte(key))
 	r := chi.NewRouter()
 	r.Use(hasher.RequestHash)
 	r.Use(compresses.CompressHandle)
 	r.Use(logger.RequestLogger)
-
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", sh.all)
 		r.Route("/update", func(r chi.Router) {

@@ -1,3 +1,6 @@
+// Package file provides structures for working with files.
+//
+// Deprecated
 package file
 
 import (

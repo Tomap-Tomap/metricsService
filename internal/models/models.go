@@ -1,3 +1,4 @@
+// Package models defines structure and methods for working with server model.
 package models
 
 import (
@@ -7,6 +8,7 @@ import (
 	"strings"
 )
 
+// Metrics defines the data model of the server.
 type Metrics struct {
 	ID    string   `json:"id"`
 	MType string   `json:"type"`
@@ -14,6 +16,7 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"`
 }
 
+// NewMetrics returns an empty model with the specified name and type.
 func NewMetrics(id, mType string) (*Metrics, error) {
 	if err := checkType(mType); err != nil {
 		return nil, fmt.Errorf("check metrics type id %s, mType %s: %w", id, mType, err)
@@ -22,14 +25,17 @@ func NewMetrics(id, mType string) (*Metrics, error) {
 	return &Metrics{ID: id, MType: mType}, nil
 }
 
+// NewMetricsForGauge returns a gauge model with the specified id and value.
 func NewMetricsForGauge(id string, value float64) *Metrics {
 	return &Metrics{ID: id, MType: "gauge", Value: &value}
 }
 
+// NewMetricsForCounter returns a counter model with the specified id and delta.
 func NewMetricsForCounter(id string, delta int64) *Metrics {
 	return &Metrics{ID: id, MType: "counter", Delta: &delta}
 }
 
+// NewMetricsByStrings returns a model with the specified id, type and value.
 func NewMetricsByStrings(id, mType, value string) (*Metrics, error) {
 	switch strings.ToLower(mType) {
 	case "counter":
@@ -41,6 +47,7 @@ func NewMetricsByStrings(id, mType, value string) (*Metrics, error) {
 	}
 }
 
+// NewMetricsByJSON returns a model by JSON.
 func NewMetricsByJSON(j []byte) (*Metrics, error) {
 	var m Metrics
 	err := json.Unmarshal(j, &m)
@@ -56,6 +63,7 @@ func NewMetricsByJSON(j []byte) (*Metrics, error) {
 	return &m, nil
 }
 
+// NewMetricsSliceByJSON returns a set of JSON models.
 func NewMetricsSliceByJSON(j []byte) ([]Metrics, error) {
 	var m []Metrics
 	err := json.Unmarshal(j, &m)
@@ -67,6 +75,7 @@ func NewMetricsSliceByJSON(j []byte) ([]Metrics, error) {
 	return m, nil
 }
 
+// GetGaugesSliceByMap returns models based on the specified data set.
 func GetGaugesSliceByMap(m map[string]float64) []Metrics {
 	rM := make([]Metrics, 0, len(m))
 

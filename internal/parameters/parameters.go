@@ -1,3 +1,4 @@
+// Package parameters defines structure's parameters for agent/servers work.
 package parameters
 
 import (
@@ -6,6 +7,7 @@ import (
 	"strconv"
 )
 
+// AgentParameters contains parameters for agent.
 type AgentParameters struct {
 	ListenAddr     string
 	Key            string
@@ -14,6 +16,7 @@ type AgentParameters struct {
 	PollInterval   uint
 }
 
+// ParseFlagsAgent return agent's parameters from console or env.
 func ParseFlagsAgent() (p AgentParameters) {
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
@@ -58,6 +61,7 @@ func ParseFlagsAgent() (p AgentParameters) {
 	return
 }
 
+// AgentParameters contains parameters for server.
 type ServerParameters struct {
 	FlagRunAddr     string
 	FileStoragePath string
@@ -67,6 +71,7 @@ type ServerParameters struct {
 	Restore         bool
 }
 
+// ParseFlagsServer return server's parameters from console or env.
 func ParseFlagsServer() (p ServerParameters) {
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")

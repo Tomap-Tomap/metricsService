@@ -1,3 +1,5 @@
+// Server main package.
+// Server defines handlers for collecting metrics and stores them in the database
 package main
 
 import (

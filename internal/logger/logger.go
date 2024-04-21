@@ -1,3 +1,4 @@
+// Package logger defines structures and handles for logging.
 package logger
 
 import (
@@ -10,8 +11,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// Log it's singleton variable for working with logs.
 var Log *zap.Logger = zap.NewNop()
 
+// Initialize do initialize log variable.
 func Initialize(level string, outputPath string) error {
 	lvl, err := zap.ParseAtomicLevel(level)
 
@@ -63,6 +66,8 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	}
 }
 
+// RequestLogger return handler for middleware.
+// RequestLogger may be logging requests.
 func RequestLogger(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

@@ -1,3 +1,4 @@
+// Package compresses defines structures and handles for working with compressed data.
 package compresses
 
 import (
@@ -36,6 +37,8 @@ func (c *compressReader) Close() error {
 	return c.Reader.Close()
 }
 
+// CompressHandle return handler for middleware.
+// Handle may compress and decompress data.
 func CompressHandle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentEncoding := r.Header.Get("Content-Encoding")
@@ -73,6 +76,7 @@ func CompressHandle(next http.Handler) http.Handler {
 	})
 }
 
+// GetCompressedJSON return compress JSON data.
 func GetCompressedJSON(m any) ([]byte, error) {
 	j, err := json.Marshal(m)
 

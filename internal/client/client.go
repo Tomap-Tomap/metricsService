@@ -1,3 +1,4 @@
+// The package client defines a structure that sends data to the server.
 package client
 
 import (
@@ -14,6 +15,7 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+// Agent it's structure witch send hashed data to server.
 type Client struct {
 	addr        string
 	restyClient *resty.Client
@@ -31,6 +33,7 @@ func NewClient(addr, key string) *Client {
 	return &Client{addr, client, hasher.NewHasher([]byte(key))}
 }
 
+// SendGauge send float64 value to server.
 func (c *Client) SendGauge(ctx context.Context, name string, value float64) error {
 	m := models.NewMetricsForGauge(name, value)
 
@@ -58,6 +61,7 @@ func (c *Client) SendGauge(ctx context.Context, name string, value float64) erro
 	return nil
 }
 
+// SendCounter send int64 value to server.
 func (c *Client) SendCounter(ctx context.Context, name string, delta int64) error {
 	m := models.NewMetricsForCounter(name, delta)
 
@@ -85,6 +89,7 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 	return nil
 }
 
+// SendBatch send batch data to server.
 func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error {
 	m := models.GetGaugesSliceByMap(batch)
 

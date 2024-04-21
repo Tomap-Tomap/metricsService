@@ -1,3 +1,4 @@
+// Package hasher defines structures for working with hashed data.
 package hasher
 
 import (
@@ -11,6 +12,7 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+// Hasher It's structure witch defines methods for hashing data.
 type Hasher struct {
 	key []byte
 }
@@ -19,6 +21,7 @@ func NewHasher(key []byte) Hasher {
 	return Hasher{key}
 }
 
+// HashingRequest do hash request body.
 func (h *Hasher) HashingRequest(req *resty.Request, body []byte) {
 	if len(h.key) == 0 {
 		return
@@ -47,6 +50,8 @@ func (r *hashingResponseWriter) Write(b []byte) (int, error) {
 	return size, err
 }
 
+// RequestHash return handler for middleware.
+// Handle checks hashed data.
 func (h *Hasher) RequestHash(handler http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		hashHeader := r.Header.Get("HashSHA256")

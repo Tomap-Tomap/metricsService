@@ -1,3 +1,5 @@
+// Agent main package.
+// Agent collects metrics and sends them to the server
 package main
 
 import (

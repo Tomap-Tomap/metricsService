@@ -1,3 +1,4 @@
+// Package memstats defines structure for calculating memory statistic, virtual memory statistics, CPU utilization and random value.
 package memstats
 
 import (
@@ -10,6 +11,7 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
+// MemStatsForServer stores statistics data and defines methods for working with it.
 type MemStatsForServer struct {
 	sync.RWMutex
 	runtime.MemStats
@@ -28,6 +30,7 @@ func NewMemStatsForServer() (*MemStatsForServer, error) {
 	return ms, nil
 }
 
+// ReadMemStats do updates memory data.
 func (ms *MemStatsForServer) ReadMemStats() error {
 	ms.Lock()
 	defer ms.Unlock()
@@ -53,6 +56,7 @@ func (ms *MemStatsForServer) ReadMemStats() error {
 	return nil
 }
 
+// GetMap return memory data.
 func (ms *MemStatsForServer) GetMap() map[string]float64 {
 	ms.RLock()
 	defer ms.RUnlock()

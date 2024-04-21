@@ -19,6 +19,7 @@ type retryPolicy struct {
 	increment  int
 }
 
+// DBStorage contains methods for working with postgres storage.
 type DBStorage struct {
 	conn        *pgxpool.Pool
 	retryPolicy retryPolicy
@@ -35,10 +36,12 @@ func NewDBStorage(conn *pgxpool.Pool) (*DBStorage, error) {
 	return dbs, nil
 }
 
+// PingDB checks database.
 func (dbs *DBStorage) PingDB(ctx context.Context) error {
 	return dbs.conn.Ping(ctx)
 }
 
+// UpdateByMetrics updates data on database and returns new data.
 func (dbs *DBStorage) UpdateByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
 	switch m.MType {
 	case "counter":
@@ -50,6 +53,7 @@ func (dbs *DBStorage) UpdateByMetrics(ctx context.Context, m models.Metrics) (*m
 	}
 }
 
+// ValueByMetrics returns data from database.
 func (dbs *DBStorage) ValueByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
 	switch m.MType {
 	case "counter":
@@ -61,6 +65,7 @@ func (dbs *DBStorage) ValueByMetrics(ctx context.Context, m models.Metrics) (*mo
 	}
 }
 
+// GetAllGauge returns gauges data from database.
 func (dbs *DBStorage) GetAllGauge(ctx context.Context) (map[string]Gauge, error) {
 	var (
 		s      string
@@ -92,6 +97,7 @@ func (dbs *DBStorage) GetAllGauge(ctx context.Context) (map[string]Gauge, error)
 	return retMap, nil
 }
 
+// GetAllCounter returns counters data from database.
 func (dbs *DBStorage) GetAllCounter(ctx context.Context) (map[string]Counter, error) {
 	var (
 		s      string
@@ -123,6 +129,7 @@ func (dbs *DBStorage) GetAllCounter(ctx context.Context) (map[string]Counter, er
 	return retMap, nil
 }
 
+// Updates updates database's datas.
 func (dbs *DBStorage) Updates(ctx context.Context, metrics []models.Metrics) error {
 	batch := &pgx.Batch{}
 

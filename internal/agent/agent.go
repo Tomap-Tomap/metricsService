@@ -1,3 +1,4 @@
+// The package agent defines a structure that gets memory metrics and sends them to the server.
 package agent
 
 import (
@@ -14,11 +15,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Client it's type for sending data to server.
 type Client interface {
 	SendBatch(ctx context.Context, batch map[string]float64) error
 	SendCounter(ctx context.Context, name string, delta int64) error
 }
 
+// Agent it's structure for calculate and send data to server.
 type Agent struct {
 	reportInterval uint
 	pollInterval   uint
@@ -45,6 +48,7 @@ func NewAgent(client Client, reportInterval, pollInterval, rateLimit uint) (*Age
 	return a, nil
 }
 
+// Run start calculate and sending data to server.
 func (a *Agent) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
