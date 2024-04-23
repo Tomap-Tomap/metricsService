@@ -16,6 +16,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-chi/chi/v5"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 // Repository it's type for work with storages.
@@ -28,15 +29,6 @@ type Repository interface {
 	Updates(ctx context.Context, metrics []models.Metrics) error
 }
 
-// ServiceHandlers contains handlers for server.
-// Avalible handlers:
-// updateByJSON - do update storage by json data.
-// updateByURL - do update storage by data on url.
-// valueByJSON - return storage data by JSON query.
-// valueByURL - return storage data by url query.
-// all - return all storage data by HTML format.
-// ping - check storage work.
-// updates - do multiple updates storage data by JSON.
 type ServiceHandlers struct {
 	ms Repository
 }
@@ -45,6 +37,19 @@ func NewServiceHandlers(ms Repository) ServiceHandlers {
 	return ServiceHandlers{ms}
 }
 
+// UpdateByJSON godoc
+//
+//	@Tags			Update
+//	@Summary		Update metrics data
+//	@Description	Create new or update existing metric data.
+//	@ID				updateUpdateByJSON
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		models.Metrics	true	"A JSON object with `id`, `type`, `value` of `delta` properties"
+//	@Success		200		{object}	models.Metrics
+//	@Failure		400		{string}	string
+//	@Security		ApiKeyAuth
+//	@Router			/update [post]
 func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	w.Header().Add("Content-Type", "charset=utf-8")
@@ -74,6 +79,21 @@ func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) 
 	w.Write(resp)
 }
 
+// UpdateByURL godoc
+//
+//	@Tags			Update
+//	@Summary		Update metrics data
+//	@Description	Create new or update existing metric data.
+//	@ID				updateUpdateByURL
+//	@Accept			plain
+//	@Produce		plain
+//	@Param			name	path		string	true	"Metrics' name"						example("test")
+//	@Param			type	path		string	true	"Metrics' type (counter or gauge)"	example("gauge")
+//	@Param			value	path		string	true	"Metrics' value (integer or float)"	example("1.1")
+//	@Success		200		{string}	string
+//	@Failure		400		{string}	string
+//	@Security		ApiKeyAuth
+//	@Router			/update/{type}/{name}/{value} [post]
 func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.Header().Add("Content-Type", "charset=utf-8")
@@ -99,6 +119,20 @@ func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// ValueByJSON godoc
+//
+//	@Tags			Value
+//	@Summary		Return metrics
+//	@Description	Return metric value
+//	@ID				valueValueByJSON
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		models.Metrics	true	"A JSON object with `id`, `type` properties"
+//	@Success		200		{object}	models.Metrics
+//	@Failure		400		{string}	string
+//	@Failure		404		{string}	string
+//	@Security		ApiKeyAuth
+//	@Router			/value [post]
 func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	w.Header().Add("Content-Type", "charset=utf-8")
@@ -128,6 +162,21 @@ func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
 	w.Write(resp)
 }
 
+// ValueByURL godoc
+//
+//	@Tags			Value
+//	@Summary		Return metrics
+//	@Description	Return metric value
+//	@ID				valueValueByURL
+//	@Accept			plain
+//	@Produce		plain
+//	@Param			name	path		string	true	"Metrics' name"						example("test")
+//	@Param			type	path		string	true	"Metrics' type (counter or gauge)"	example("gauge")
+//	@Success		200		{string}	string
+//	@Failure		400		{string}	string
+//	@Failure		404		{string}	string
+//	@Security		ApiKeyAuth
+//	@Router			/value/{type}/{name} [get]
 func (sh *ServiceHandlers) valueByURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.Header().Add("Content-Type", "charset=utf-8")
@@ -158,6 +207,18 @@ func (sh *ServiceHandlers) valueByURL(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, *m.Value)
 }
 
+// All godoc
+//
+//	@Tags			Value
+//	@Summary		Return all metrics
+//	@Description	Return all metric value
+//	@ID				valueAll
+//	@Accept			plain
+//	@Produce		html
+//	@Success		200	{string}	string
+//	@Failure		500	{string}	string
+//	@Security		ApiKeyAuth
+//	@Router			/ [get]
 func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 	tmpl := `<!DOCTYPE html>
 	<html>
@@ -232,6 +293,17 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// Ping godoc
+//
+//	@Summary		Ping storage
+//	@Description	Check storage work
+//	@ID				Ping
+//	@Accept			plain
+//	@Produce		plain
+//	@Success		200	{string}	string
+//	@Failure		500	{string}	string
+//	@Security		ApiKeyAuth
+//	@Router			/ping [get]
 func (sh *ServiceHandlers) ping(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.Header().Add("Content-Type", "charset=utf-8")
@@ -245,6 +317,20 @@ func (sh *ServiceHandlers) ping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// Updates godoc
+//
+//	@Tags			Update
+//	@Summary		Multiply metrics update
+//	@Description	Create new or update existing metrics data.
+//	@ID				updateUpdates
+//	@Accept			json
+//	@Produce		plain
+//	@Param			request	body		[]models.Metrics	true	"A JSON objects with `id`, `type`, `value` of `delta` properties"
+//	@Success		200		{string}	string
+//	@Failure		400		{string}	string
+//	@Failure		500		{string}	string
+//	@Security		ApiKeyAuth
+//	@Router			/updates [post]
 func (sh *ServiceHandlers) updates(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.Header().Add("Content-Type", "charset=utf-8")
@@ -313,6 +399,7 @@ func ServiceRouter(sh ServiceHandlers, key string) chi.Router {
 		r.Route("/updates", func(r chi.Router) {
 			r.Post("/", sh.updates)
 		})
+		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 	})
 
 	return r

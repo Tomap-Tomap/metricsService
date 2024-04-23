@@ -1,5 +1,5 @@
 // Server main package.
-// Server defines handlers for collecting metrics and stores them in the database
+// Server defines handlers for collecting metrics and stores them in the database.
 package main
 
 import (
@@ -8,15 +8,36 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/handlers"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
+	_ "github.com/DarkOmap/metricsService/swagger"
 )
+
+//	@Title			MetricsSevice API
+//	@Description	Service to communicate with storage.
+//	@Version		1.0
+
+//	@Contact.email	timur.konoplev@yandex.ru
+
+//	@BasePath	/
+//	@Host		localhost:8080
+
+//	@SecurityDefinitions.apikey	ApiKeyAuth
+//	@In							header
+//	@Name						HashSHA256
+
+//	@Tag.name			Update
+//	@Tag.description	"Query group for updates on metrics data"
+
+//	@Tag.name			Value
+//	@Tag.description	"Query group for metrics data retrieval"
 
 func main() {
 	p := parameters.ParseFlagsServer()

@@ -8,7 +8,9 @@ import (
 	"strings"
 )
 
-// Metrics defines the data model of the server.
+// Metrics model
+// @Description Metric information
+// @Description type may be "gauge" or "counter"
 type Metrics struct {
 	ID    string   `json:"id"`
 	MType string   `json:"type"`
