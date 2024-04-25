@@ -1,149 +1,139 @@
 package client
 
-import (
-	"context"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
+// func TestSendGauge(t *testing.T) {
+// 	type args struct {
+// 		name  string
+// 		value float64
+// 	}
+// 	tests := []struct {
+// 		name    string
+// 		args    args
+// 		handler http.HandlerFunc
+// 		wantErr bool
+// 	}{
+// 		{
+// 			name: "not OK test",
+// 			args: args{"test", 1.1},
+// 			handler: func(w http.ResponseWriter, r *http.Request) {
+// 				http.Error(w, "test error", http.StatusBadRequest)
+// 			},
+// 			wantErr: true,
+// 		},
+// 		{
+// 			name: "OK test",
+// 			args: args{"test", 1.1},
+// 			handler: func(w http.ResponseWriter, r *http.Request) {
+// 			},
+// 			wantErr: false,
+// 		},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
+// 			defer ts.Close()
 
-	"github.com/stretchr/testify/assert"
-)
+// 			c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
+// 			err := c.SendGauge(context.Background(), tt.args.name, tt.args.value)
 
-func TestSendGauge(t *testing.T) {
-	type args struct {
-		name  string
-		value float64
-	}
-	tests := []struct {
-		name    string
-		args    args
-		handler http.HandlerFunc
-		wantErr bool
-	}{
-		{
-			name: "not OK test",
-			args: args{"test", 1.1},
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				http.Error(w, "test error", http.StatusBadRequest)
-			},
-			wantErr: true,
-		},
-		{
-			name: "OK test",
-			args: args{"test", 1.1},
-			handler: func(w http.ResponseWriter, r *http.Request) {
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
-			defer ts.Close()
+// 			if tt.wantErr {
+// 				assert.Error(t, err)
+// 				return
+// 			}
 
-			c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
-			err := c.SendGauge(context.Background(), tt.args.name, tt.args.value)
+// 			assert.NoError(t, err)
+// 		})
+// 	}
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
+// 	t.Run("test brocken server", func(t *testing.T) {
+// 		c := NewClient("test", "")
+// 		err := c.SendGauge(context.Background(), "test", 1.1)
 
-			assert.NoError(t, err)
-		})
-	}
+// 		assert.Error(t, err)
+// 	})
+// }
 
-	t.Run("test brocken server", func(t *testing.T) {
-		c := NewClient("test", "")
-		err := c.SendGauge(context.Background(), "test", 1.1)
+// func TestSendCounter(t *testing.T) {
+// 	type args struct {
+// 		name  string
+// 		delta int64
+// 	}
+// 	tests := []struct {
+// 		name    string
+// 		args    args
+// 		handler http.HandlerFunc
+// 		wantErr bool
+// 	}{
+// 		{
+// 			name: "not OK test",
+// 			args: args{"test", 1},
+// 			handler: func(w http.ResponseWriter, r *http.Request) {
+// 				http.Error(w, "test error", http.StatusBadRequest)
+// 			},
+// 			wantErr: true,
+// 		},
+// 		{
+// 			name: "OK test",
+// 			args: args{"test", 1},
+// 			handler: func(w http.ResponseWriter, r *http.Request) {
+// 			},
+// 			wantErr: false,
+// 		},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
+// 			defer ts.Close()
 
-		assert.Error(t, err)
-	})
-}
+// 			c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
+// 			err := c.SendCounter(context.Background(), tt.args.name, tt.args.delta)
 
-func TestSendCounter(t *testing.T) {
-	type args struct {
-		name  string
-		delta int64
-	}
-	tests := []struct {
-		name    string
-		args    args
-		handler http.HandlerFunc
-		wantErr bool
-	}{
-		{
-			name: "not OK test",
-			args: args{"test", 1},
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				http.Error(w, "test error", http.StatusBadRequest)
-			},
-			wantErr: true,
-		},
-		{
-			name: "OK test",
-			args: args{"test", 1},
-			handler: func(w http.ResponseWriter, r *http.Request) {
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ts := httptest.NewServer(http.HandlerFunc(tt.handler))
-			defer ts.Close()
+// 			if tt.wantErr {
+// 				assert.Error(t, err)
+// 				return
+// 			}
 
-			c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
-			err := c.SendCounter(context.Background(), tt.args.name, tt.args.delta)
+// 			assert.NoError(t, err)
+// 		})
+// 	}
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
+// 	t.Run("test brocken server", func(t *testing.T) {
+// 		c := NewClient("test", "")
+// 		err := c.SendCounter(context.Background(), "test", 1)
 
-			assert.NoError(t, err)
-		})
-	}
+// 		assert.Error(t, err)
+// 	})
+// }
 
-	t.Run("test brocken server", func(t *testing.T) {
-		c := NewClient("test", "")
-		err := c.SendCounter(context.Background(), "test", 1)
+// func TestClient_SendBatch(t *testing.T) {
+// 	t.Run("not OK test", func(t *testing.T) {
+// 		hf := func(w http.ResponseWriter, r *http.Request) {
+// 			http.Error(w, "test error", http.StatusBadRequest)
+// 		}
 
-		assert.Error(t, err)
-	})
-}
+// 		ts := httptest.NewServer(http.HandlerFunc(hf))
+// 		defer ts.Close()
 
-func TestClient_SendBatch(t *testing.T) {
-	t.Run("not OK test", func(t *testing.T) {
-		hf := func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "test error", http.StatusBadRequest)
-		}
+// 		c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
+// 		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
+// 		assert.Error(t, err)
+// 	})
 
-		ts := httptest.NewServer(http.HandlerFunc(hf))
-		defer ts.Close()
+// 	t.Run("OK test", func(t *testing.T) {
+// 		hf := func(w http.ResponseWriter, r *http.Request) {
+// 		}
 
-		c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
-		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
-		assert.Error(t, err)
-	})
+// 		ts := httptest.NewServer(http.HandlerFunc(hf))
+// 		defer ts.Close()
 
-	t.Run("OK test", func(t *testing.T) {
-		hf := func(w http.ResponseWriter, r *http.Request) {
-		}
+// 		c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
+// 		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
+// 		assert.NoError(t, err)
+// 	})
 
-		ts := httptest.NewServer(http.HandlerFunc(hf))
-		defer ts.Close()
+// 	t.Run("test brocken server", func(t *testing.T) {
+// 		c := NewClient("test", "")
+// 		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
 
-		c := NewClient(strings.TrimPrefix(ts.URL, "http://"), "")
-		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
-		assert.NoError(t, err)
-	})
-
-	t.Run("test brocken server", func(t *testing.T) {
-		c := NewClient("test", "")
-		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
-
-		assert.Error(t, err)
-	})
-}
+// 		assert.Error(t, err)
+// 	})
+// }

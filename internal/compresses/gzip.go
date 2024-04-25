@@ -76,8 +76,46 @@ func CompressHandle(next http.Handler) http.Handler {
 	})
 }
 
+type GzipPool struct {
+	pool chan *gzip.Writer
+}
+
+func NewGzipPool(rateLimit uint) *GzipPool {
+	pool := make(chan *gzip.Writer, rateLimit)
+
+	for p := 1; p <= cap(pool); p++ {
+		pool <- gzip.NewWriter(nil)
+	}
+
+	return &GzipPool{pool}
+}
+
+func (gp *GzipPool) getWriter() (*gzip.Writer, error) {
+	w, ok := <-gp.pool
+
+	if !ok {
+		return nil, fmt.Errorf("pool is closed")
+	}
+
+	return w, nil
+}
+
+func (gp *GzipPool) putWriter(w *gzip.Writer) {
+	w.Reset(nil)
+	select {
+	case gp.pool <- w:
+	default:
+	}
+}
+
 // GetCompressedJSON return compress JSON data.
-func GetCompressedJSON(m any) ([]byte, error) {
+func (gp *GzipPool) GetCompressedJSON(m any) ([]byte, error) {
+	w, err := gp.getWriter()
+
+	if err != nil {
+		return nil, fmt.Errorf("get writer: %w", err)
+	}
+
 	j, err := json.Marshal(m)
 
 	if err != nil {
@@ -86,15 +124,17 @@ func GetCompressedJSON(m any) ([]byte, error) {
 
 	var buf bytes.Buffer
 
-	g := gzip.NewWriter(&buf)
+	w.Reset(&buf)
 
-	if _, err := g.Write(j); err != nil {
+	if _, err := w.Write(j); err != nil {
 		return nil, fmt.Errorf("failed write data to compress temporary buffer: %w", err)
 	}
 
-	if err = g.Close(); err != nil {
+	if err = w.Close(); err != nil {
 		return nil, fmt.Errorf("failed compress data: %w", err)
 	}
+
+	gp.putWriter(w)
 
 	return buf.Bytes(), nil
 }
