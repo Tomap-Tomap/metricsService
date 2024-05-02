@@ -9,24 +9,24 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/hasher"
-	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/go-resty/resty/v2"
-	"go.uber.org/zap"
 )
+
+type Compresser interface {
+	GetCompressedJSON(m any) ([]byte, error)
+}
 
 // Agent it's structure witch send hashed data to server.
 type Client struct {
 	addr        string
 	restyClient *resty.Client
 	hasher      hasher.Hasher
-	jobs        chan func() error
-	gp          *compresses.GzipPool
+	gp          Compresser
 }
 
-func NewClient(addr, key string, rateLimit uint) *Client {
+func NewClient(compresser Compresser, h hasher.Hasher, addr string) *Client {
 	client := resty.New().
 		AddRetryCondition(func(r *resty.Response, err error) bool {
 			return errors.Is(err, syscall.ECONNREFUSED)
@@ -35,49 +35,18 @@ func NewClient(addr, key string, rateLimit uint) *Client {
 		SetRetryWaitTime(1 * time.Second).
 		SetRetryMaxWaitTime(9 * time.Second)
 
-	jobs := make(chan func() error, rateLimit)
-
 	c := &Client{
 		addr,
 		client,
-		hasher.NewHasher([]byte(key)),
-		jobs,
-		compresses.NewGzipPool(rateLimit),
-	}
-
-	for w := 1; w <= cap(jobs); w++ {
-		go c.worker(jobs)
+		h,
+		compresser,
 	}
 
 	return c
 }
 
 // SendGauge send float64 value to server.
-func (c *Client) SendGauge(ctx context.Context, name string, value float64) {
-	c.jobs <- func() error {
-		return c.sendGauge(ctx, name, value)
-	}
-}
-
-// SendCounter send int64 value to server.
-func (c *Client) SendCounter(ctx context.Context, name string, delta int64) {
-	c.jobs <- func() error {
-		return c.sendCounter(ctx, name, delta)
-	}
-}
-
-// SendBatch send batch data to server.
-func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) {
-	c.jobs <- func() error {
-		return c.sendBatch(ctx, batch)
-	}
-}
-
-func (c *Client) Close() {
-	close(c.jobs)
-}
-
-func (c *Client) sendGauge(ctx context.Context, name string, value float64) error {
+func (c *Client) SendGauge(ctx context.Context, name string, value float64) error {
 	m := models.NewMetricsForGauge(name, value)
 
 	b, err := c.gp.GetCompressedJSON(m)
@@ -104,7 +73,8 @@ func (c *Client) sendGauge(ctx context.Context, name string, value float64) erro
 	return nil
 }
 
-func (c *Client) sendCounter(ctx context.Context, name string, delta int64) error {
+// SendCounter send int64 value to server.
+func (c *Client) SendCounter(ctx context.Context, name string, delta int64) error {
 	m := models.NewMetricsForCounter(name, delta)
 
 	b, err := c.gp.GetCompressedJSON(m)
@@ -131,7 +101,8 @@ func (c *Client) sendCounter(ctx context.Context, name string, delta int64) erro
 	return nil
 }
 
-func (c *Client) sendBatch(ctx context.Context, batch map[string]float64) error {
+// SendBatch send batch data to server.
+func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error {
 	m := models.GetGaugesSliceByMap(batch)
 
 	b, err := c.gp.GetCompressedJSON(m)
@@ -156,17 +127,4 @@ func (c *Client) sendBatch(ctx context.Context, batch map[string]float64) error 
 	}
 
 	return nil
-}
-
-func (c *Client) worker(jobs <-chan func() error) {
-	for j := range jobs {
-		err := j()
-
-		if err != nil {
-			logger.Log.Warn(
-				"Error on sending to server",
-				zap.Error(err),
-			)
-		}
-	}
 }

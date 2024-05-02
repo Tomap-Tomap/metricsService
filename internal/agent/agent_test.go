@@ -1,142 +1,182 @@
 package agent
 
-// type ClientMockedObject struct {
-// 	mock.Mock
-// }
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"net/url"
+	"testing"
+	"time"
 
-// func (c *ClientMockedObject) SendBatch(ctx context.Context, batch map[string]float64) error {
-// 	args := c.Called(batch)
+	"github.com/DarkOmap/metricsService/internal/logger"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+)
 
-// 	return args.Error(0)
-// }
+type ClientMockedObject struct {
+	mock.Mock
+}
 
-// func (c *ClientMockedObject) SendCounter(ctx context.Context, name string, delta int64) error {
-// 	args := c.Called(delta)
+func (c *ClientMockedObject) SendBatch(ctx context.Context, batch map[string]float64) error {
+	args := c.Called()
 
-// 	return args.Error(0)
-// }
+	return args.Error(0)
+}
 
-// func TestNewAgent(t *testing.T) {
-// 	testClient := client.NewClient("test", "")
+func (c *ClientMockedObject) SendCounter(ctx context.Context, name string, delta int64) error {
+	args := c.Called()
 
-// 	type args struct {
-// 		client         *client.Client
-// 		reportInterval uint
-// 		pollInterval   uint
-// 		reportLimit    uint
-// 	}
-// 	tests := []struct {
-// 		name  string
-// 		args  args
-// 		wantA *Agent
-// 	}{
-// 		{
-// 			name:  "positive test",
-// 			args:  args{testClient, 10, 10, 10},
-// 			wantA: &Agent{reportInterval: 10, pollInterval: 10, rateLimit: 10, client: testClient},
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			gotA, err := NewAgent(tt.args.client, tt.args.reportInterval, tt.args.pollInterval, tt.args.reportLimit)
-// 			require.NoError(t, err)
-// 			gotA.ms = nil
-// 			assert.Equal(t, tt.wantA, gotA)
-// 		})
-// 	}
-// }
+	return args.Error(0)
+}
 
-// type testingSink struct {
-// 	*bytes.Buffer
-// }
+type MSModckedObkect struct {
+	mock.Mock
+}
 
-// func (s *testingSink) Close() error { return nil }
-// func (s *testingSink) Sync() error  { return nil }
+func (ms *MSModckedObkect) ReadMemStats() error {
+	args := ms.Called()
 
-// func TestWorker(t *testing.T) {
-// 	sink := &testingSink{new((bytes.Buffer))}
-// 	zap.RegisterSink("testingWorker", func(u *url.URL) (zap.Sink, error) { return sink, nil })
-// 	logger.Initialize("INFO", "testingWorker://")
+	return args.Error(0)
+}
 
-// 	t.Run("no error test", func(t *testing.T) {
-// 		jobs := make(chan func(context.Context) error, 1)
-// 		jobs <- func(context.Context) error { return nil }
-// 		close(jobs)
-// 		worker(context.Background(), jobs)
-// 		logs := sink.String()
+func (ms *MSModckedObkect) GetMap() map[string]float64 {
+	args := ms.Called()
 
-// 		require.Empty(t, logs)
-// 	})
+	return args.Get(0).(map[string]float64)
+}
 
-// 	t.Run("error test", func(t *testing.T) {
-// 		jobs := make(chan func(context.Context) error, 1)
-// 		jobs <- func(context.Context) error { return fmt.Errorf("func error") }
-// 		close(jobs)
-// 		worker(context.Background(), jobs)
+func TestNewAgent(t *testing.T) {
+	c := new(ClientMockedObject)
+	ms := new(MSModckedObkect)
 
-// 		logs := sink.String()
+	t.Run("positive test", func(t *testing.T) {
+		gotA := NewAgent(c, ms, 10, 10)
 
-// 		require.Contains(t, logs, "func error")
-// 	})
-// }
+		require.Equal(t, &Agent{
+			reportInterval: 10,
+			pollInterval:   10,
+			client:         c,
+			ms:             ms,
+		}, gotA)
+	})
+}
 
-// func TestAgent_sendBatch(t *testing.T) {
-// 	agent := &Agent{}
-// 	msNoError, err := memstats.NewMemStatsForServer()
-// 	require.NoError(t, err)
+func TestAgent_Run(t *testing.T) {
+	t.Run("positive test", func(t *testing.T) {
+		t.Parallel()
+		c := new(ClientMockedObject)
+		c.On("SendBatch").Return(nil)
+		c.On("SendCounter").Return(nil)
+		ms := new(MSModckedObkect)
+		ms.On("ReadMemStats").Return(nil)
+		ms.On("GetMap").Return(map[string]float64{"test": 1})
 
-// 	msError, err := memstats.NewMemStatsForServer()
-// 	require.NoError(t, err)
+		a := NewAgent(c, ms, 1, 1)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
-// 	cm := new(ClientMockedObject)
-// 	cm.On("SendBatch", msNoError.GetMap()).Return(nil)
-// 	cm.On("SendBatch", msError.GetMap()).Return(fmt.Errorf("test error"))
+		err := a.Run(ctx)
 
-// 	agent.client = cm
-// 	t.Run("test no error", func(t *testing.T) {
-// 		agent.ms = msNoError
+		require.NoError(t, err)
 
-// 		err := agent.sendBatch(context.Background())
+		ms.AssertExpectations(t)
+	})
 
-// 		require.NoError(t, err)
-// 	})
+	t.Run("negative test", func(t *testing.T) {
+		t.Parallel()
+		c := new(ClientMockedObject)
+		c.On("SendBatch").Return(nil)
+		c.On("SendCounter").Return(nil)
+		ms := new(MSModckedObkect)
+		ms.On("ReadMemStats").Return(fmt.Errorf("test error"))
+		ms.On("GetMap").Return(map[string]float64{"test": 1})
 
-// 	t.Run("test error", func(t *testing.T) {
-// 		agent.ms = msError
+		a := NewAgent(c, ms, 1, 1)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
-// 		err := agent.sendBatch(context.Background())
+		err := a.Run(ctx)
 
-// 		require.Error(t, err)
-// 	})
+		require.Error(t, err)
 
-// 	cm.AssertExpectations(t)
-// }
+		ms.AssertExpectations(t)
+	})
+}
 
-// func TestAgent_sendCounter(t *testing.T) {
-// 	agent := &Agent{}
+type testingSink struct {
+	*bytes.Buffer
+}
 
-// 	deltaNoError := int64(0)
-// 	deltaError := int64(1)
+func (s *testingSink) Close() error { return nil }
+func (s *testingSink) Sync() error  { return nil }
 
-// 	cm := new(ClientMockedObject)
-// 	cm.On("SendCounter", deltaNoError).Return(nil)
-// 	cm.On("SendCounter", deltaError).Return(fmt.Errorf("test error"))
+func TestAgent_sendBatch(t *testing.T) {
+	sink := &testingSink{new((bytes.Buffer))}
+	zap.RegisterSink("testingBatch", func(u *url.URL) (zap.Sink, error) { return sink, nil })
+	logger.Initialize("INFO", "testingBatch://")
 
-// 	agent.client = cm
+	t.Run("positive tets", func(t *testing.T) {
+		c := new(ClientMockedObject)
+		c.On("SendBatch").Return(nil)
+		ms := new(MSModckedObkect)
+		ms.On("GetMap").Return(map[string]float64{"test": 1})
 
-// 	t.Run("test no error", func(t *testing.T) {
-// 		agent.pollCount.Store(deltaNoError)
-// 		err := agent.sendCounter(context.Background())
+		a := NewAgent(c, ms, 1, 1)
 
-// 		require.NoError(t, err)
-// 	})
+		a.sendMemStats(context.Background())
 
-// 	t.Run("test error", func(t *testing.T) {
-// 		agent.pollCount.Store(deltaError)
-// 		err := agent.sendCounter(context.Background())
+		logs := sink.String()
 
-// 		require.Error(t, err)
-// 	})
+		require.Empty(t, logs)
+	})
 
-// 	cm.AssertExpectations(t)
-// }
+	t.Run("negative tets", func(t *testing.T) {
+		c := new(ClientMockedObject)
+		c.On("SendBatch").Return(fmt.Errorf("test error"))
+		ms := new(MSModckedObkect)
+		ms.On("GetMap").Return(map[string]float64{"test": 1})
+
+		a := NewAgent(c, ms, 1, 1)
+
+		a.sendMemStats(context.Background())
+
+		logs := sink.String()
+
+		require.NotEmpty(t, logs)
+	})
+}
+
+func TestAgent_sendCounter(t *testing.T) {
+	sink := &testingSink{new((bytes.Buffer))}
+	zap.RegisterSink("testingCounter", func(u *url.URL) (zap.Sink, error) { return sink, nil })
+	logger.Initialize("INFO", "testingCounter://")
+
+	t.Run("positive tets", func(t *testing.T) {
+		c := new(ClientMockedObject)
+		c.On("SendCounter").Return(nil)
+		ms := new(MSModckedObkect)
+
+		a := NewAgent(c, ms, 1, 1)
+
+		a.sendPollCount(context.Background())
+
+		logs := sink.String()
+
+		require.Empty(t, logs)
+	})
+
+	t.Run("negative tets", func(t *testing.T) {
+		c := new(ClientMockedObject)
+		c.On("SendCounter").Return(fmt.Errorf("test error"))
+		ms := new(MSModckedObkect)
+
+		a := NewAgent(c, ms, 1, 1)
+
+		a.sendPollCount(context.Background())
+
+		logs := sink.String()
+
+		require.NotEmpty(t, logs)
+	})
+}

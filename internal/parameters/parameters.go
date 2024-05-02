@@ -69,6 +69,7 @@ type ServerParameters struct {
 	Key             string
 	StoreInterval   uint
 	Restore         bool
+	RateLimit       uint
 }
 
 // ParseFlagsServer return server's parameters from console or env.
@@ -85,6 +86,7 @@ func ParseFlagsServer() (p ServerParameters) {
 	)
 	f.UintVar(&p.StoreInterval, "i", 300, "interval in seconds for save storage")
 	f.BoolVar(&p.Restore, "r", true, "flag for upload storage from file")
+	f.UintVar(&p.RateLimit, "l", 10, "rate limit")
 	f.Parse(os.Args[1:])
 
 	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
@@ -112,6 +114,14 @@ func ParseFlagsServer() (p ServerParameters) {
 	if envR := os.Getenv("RESTORE"); envR != "" {
 		if boolR, err := strconv.ParseBool(envR); err == nil {
 			p.Restore = boolR
+		}
+	}
+
+	if envRL := os.Getenv("RATE_LIMIT"); envRL != "" {
+		intRL, err := strconv.ParseUint(envRL, 10, 32)
+
+		if err == nil {
+			p.RateLimit = uint(intRL)
 		}
 	}
 

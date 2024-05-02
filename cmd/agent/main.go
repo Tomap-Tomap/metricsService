@@ -4,8 +4,6 @@ package main
 
 import (
 	"context"
-	"log"
-	"net/http"
 	"os/signal"
 	"syscall"
 
@@ -13,7 +11,10 @@ import (
 
 	"github.com/DarkOmap/metricsService/internal/agent"
 	"github.com/DarkOmap/metricsService/internal/client"
+	"github.com/DarkOmap/metricsService/internal/compresses"
+	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/logger"
+	"github.com/DarkOmap/metricsService/internal/memstats"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"go.uber.org/zap"
 )
@@ -25,39 +26,31 @@ func main() {
 		panic(err)
 	}
 
+	logger.Log.Info("Create gzip pool")
+	pool := compresses.NewGzipPool(p.RateLimit)
+	defer pool.Close()
+	logger.Log.Info("Create hasher pool")
+	h := hasher.NewHasher([]byte(p.Key), p.RateLimit)
+	defer h.Close()
 	logger.Log.Info("Create client")
-	c := client.NewClient(p.ListenAddr, p.Key, p.RateLimit)
-	defer c.Close()
-	logger.Log.Info("Create agent")
-	a, err := agent.NewAgent(c, p.ReportInterval, p.PollInterval)
+	c := client.NewClient(pool, h, p.ListenAddr)
+	logger.Log.Info("Init mem stats")
+	ms, err := memstats.NewMemStatsForServer()
 
 	if err != nil {
-		logger.Log.Fatal("Create agent", zap.Error(err))
+		logger.Log.Fatal("create mem stats", zap.Error(err))
 	}
 
-	logger.Log.Info("Agent start")
+	logger.Log.Info("Create agent")
+	a := agent.NewAgent(c, ms, p.ReportInterval, p.PollInterval)
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:8082", nil))
-	}()
+	logger.Log.Info("Agent start")
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	// defer cancel()
 	err = a.Run(ctx)
 	if err != nil {
 		logger.Log.Fatal("Run agent", zap.Error(err))
 	}
-
-	// fmem, err := os.Create(`result.pprof`)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer fmem.Close()
-	// runtime.GC() // получаем статистику по использованию памяти
-	// if err := pprof.WriteHeapProfile(fmem); err != nil {
-	// 	panic(err)
-	// }
 }

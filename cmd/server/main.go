@@ -12,8 +12,10 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/handlers"
+	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
@@ -84,8 +86,17 @@ func main() {
 
 	logger.Log.Info("Create handlers")
 	sh := handlers.NewServiceHandlers(ms)
+
+	logger.Log.Info("Create gzip pool")
+	pool := compresses.NewGzipPool(p.RateLimit)
+	defer pool.Close()
+
+	logger.Log.Info("Create hasher pool")
+	h := hasher.NewHasher([]byte(p.Key), p.RateLimit)
+	defer h.Close()
+
 	logger.Log.Info("Create routers")
-	r := handlers.ServiceRouter(sh, p.Key)
+	r := handlers.ServiceRouter(pool, h, sh)
 
 	logger.Log.Info("Create server")
 	httpServer := &http.Server{

@@ -17,7 +17,8 @@ type compressWriter struct {
 }
 
 func (c *compressWriter) Write(p []byte) (int, error) {
-	return c.Writer.Write(p)
+	n, err := c.Writer.Write(p)
+	return n, err
 }
 
 type compressReader struct {
@@ -77,44 +78,31 @@ func CompressHandle(next http.Handler) http.Handler {
 }
 
 type GzipPool struct {
-	pool chan *gzip.Writer
+	writerPool chan *gzip.Writer
+	readerPool chan *gzip.Reader
 }
 
 func NewGzipPool(rateLimit uint) *GzipPool {
-	pool := make(chan *gzip.Writer, rateLimit)
+	wp := make(chan *gzip.Writer, rateLimit)
+	rp := make(chan *gzip.Reader, rateLimit)
 
-	for p := 1; p <= cap(pool); p++ {
-		pool <- gzip.NewWriter(nil)
-	}
-
-	return &GzipPool{pool}
+	return &GzipPool{wp, rp}
 }
 
-func (gp *GzipPool) getWriter() (*gzip.Writer, error) {
-	w, ok := <-gp.pool
-
-	if !ok {
-		return nil, fmt.Errorf("pool is closed")
-	}
-
-	return w, nil
+func (gp *GzipPool) Close() {
+	close(gp.writerPool)
+	close(gp.readerPool)
 }
 
-func (gp *GzipPool) putWriter(w *gzip.Writer) {
-	w.Reset(nil)
-	select {
-	case gp.pool <- w:
-	default:
-	}
-}
-
-// GetCompressedJSON return compress JSON data.
+// GetCompressedJSON returns compressed JSON data.
 func (gp *GzipPool) GetCompressedJSON(m any) ([]byte, error) {
 	w, err := gp.getWriter()
 
 	if err != nil {
 		return nil, fmt.Errorf("get writer: %w", err)
 	}
+
+	defer gp.putWriter(w)
 
 	j, err := json.Marshal(m)
 
@@ -134,7 +122,94 @@ func (gp *GzipPool) GetCompressedJSON(m any) ([]byte, error) {
 		return nil, fmt.Errorf("failed compress data: %w", err)
 	}
 
-	gp.putWriter(w)
-
 	return buf.Bytes(), nil
+}
+
+// CompressHandle return handler for middleware.
+// Handle may compress and decompress data.
+func (gp *GzipPool) CompressHandle(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		contentEncoding := r.Header.Get("Content-Encoding")
+		sendsGzip := strings.Contains(contentEncoding, "gzip")
+
+		if sendsGzip {
+			zr, err := gp.getReader()
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			zr.Reset(r.Body)
+			r.Body = &compressReader{ReadCloser: r.Body, Reader: zr}
+			defer r.Body.Close()
+			defer gp.putReader(zr)
+		}
+
+		acceptEncoding := r.Header.Get("Accept-Encoding")
+		supportsGzip := strings.Contains(acceptEncoding, "gzip")
+
+		switch {
+		case supportsGzip:
+			w.Header().Set("Content-Encoding", "gzip")
+			gw, err := gp.getWriter()
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			gw.Reset(w)
+			defer gp.putWriter(gw)
+			defer gw.Close()
+
+			next.ServeHTTP(&compressWriter{ResponseWriter: w, Writer: gw}, r)
+		default:
+			next.ServeHTTP(w, r)
+		}
+
+	})
+}
+
+func (gp *GzipPool) getWriter() (*gzip.Writer, error) {
+	select {
+	case w, ok := <-gp.writerPool:
+		if !ok {
+			return nil, fmt.Errorf("pool is closed")
+		}
+
+		return w, nil
+	default:
+	}
+
+	return gzip.NewWriter(nil), nil
+}
+
+func (gp *GzipPool) putWriter(w *gzip.Writer) {
+	w.Reset(nil)
+	select {
+	case gp.writerPool <- w:
+	default:
+	}
+}
+
+func (gp *GzipPool) getReader() (*gzip.Reader, error) {
+	select {
+	case r, ok := <-gp.readerPool:
+		if !ok {
+			return nil, fmt.Errorf("pool is closed")
+		}
+
+		return r, nil
+	default:
+	}
+
+	return new(gzip.Reader), nil
+}
+
+func (gp *GzipPool) putReader(r *gzip.Reader) {
+	select {
+	case gp.readerPool <- r:
+	default:
+	}
 }

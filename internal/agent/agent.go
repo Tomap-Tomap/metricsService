@@ -8,15 +8,20 @@ import (
 	"time"
 
 	"github.com/DarkOmap/metricsService/internal/logger"
-	"github.com/DarkOmap/metricsService/internal/memstats"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
 // Client it's type for sending data to server.
 type Client interface {
-	SendBatch(ctx context.Context, batch map[string]float64)
-	SendCounter(ctx context.Context, name string, delta int64)
+	SendBatch(ctx context.Context, batch map[string]float64) error
+	SendCounter(ctx context.Context, name string, delta int64) error
+}
+
+// MemStats it's type for reading memory statistics
+type MemStats interface {
+	ReadMemStats() error
+	GetMap() map[string]float64
 }
 
 // Agent it's structure for calculate and send data to server.
@@ -25,23 +30,17 @@ type Agent struct {
 	pollInterval   uint
 	client         Client
 	pollCount      atomic.Int64
-	ms             *memstats.MemStatsForServer
+	ms             MemStats
 }
 
-func NewAgent(client Client, reportInterval, pollInterval uint) (*Agent, error) {
+func NewAgent(client Client, ms MemStats, reportInterval, pollInterval uint) *Agent {
 	a := &Agent{reportInterval: reportInterval,
 		pollInterval: pollInterval,
-		client:       client}
-
-	ms, err := memstats.NewMemStatsForServer()
-
-	if err != nil {
-		return nil, fmt.Errorf("create mem stats")
+		client:       client,
+		ms:           ms,
 	}
 
-	a.ms = ms
-
-	return a, nil
+	return a
 }
 
 // Run start calculate and sending data to server.
@@ -49,8 +48,8 @@ func (a *Agent) Run(ctx context.Context) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		err := a.startSendReport(egCtx)
-		return err
+		a.startSendReport(egCtx)
+		return nil
 	})
 
 	eg.Go(func() error {
@@ -66,16 +65,16 @@ func (a *Agent) Run(ctx context.Context) error {
 	return nil
 }
 
-func (a *Agent) startSendReport(ctx context.Context) error {
+func (a *Agent) startSendReport(ctx context.Context) {
 	logger.Log.Info("Send report start")
 	for {
 		select {
 		case <-time.After(time.Duration(a.reportInterval) * time.Second):
-			a.sendBatch(ctx)
-			a.sendCounter(ctx)
+			a.sendMemStats(ctx)
+			a.sendPollCount(ctx)
 		case <-ctx.Done():
 			logger.Log.Info("Send report done")
-			return nil
+			return
 		}
 	}
 }
@@ -99,12 +98,20 @@ func (a *Agent) startReadMemStats(ctx context.Context) error {
 	}
 }
 
-func (a *Agent) sendBatch(ctx context.Context) {
+func (a *Agent) sendMemStats(ctx context.Context) {
 	msForServer := a.ms.GetMap()
 
-	a.client.SendBatch(ctx, msForServer)
+	err := a.client.SendBatch(ctx, msForServer)
+
+	if err != nil {
+		logger.Log.Warn("Send batch", zap.Error(err))
+	}
 }
 
-func (a *Agent) sendCounter(ctx context.Context) {
-	a.client.SendCounter(ctx, "PollCount", a.pollCount.Load())
+func (a *Agent) sendPollCount(ctx context.Context) {
+	err := a.client.SendCounter(ctx, "PollCount", a.pollCount.Load())
+
+	if err != nil {
+		logger.Log.Warn("Send counter", zap.Error(err))
+	}
 }

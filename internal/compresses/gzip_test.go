@@ -1,105 +1,211 @@
 package compresses
 
-// import (
-// 	"bytes"
-// 	"compress/gzip"
-// 	"io"
-// 	"net/http"
-// 	"net/http/httptest"
-// 	"testing"
+import (
+	"bytes"
+	"compress/gzip"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
 
-// 	"github.com/DarkOmap/metricsService/internal/models"
-// 	"github.com/go-resty/resty/v2"
-// 	"github.com/stretchr/testify/require"
-// )
+	"github.com/go-resty/resty/v2"
+	"github.com/stretchr/testify/require"
+)
 
-// func TestGzipCompression(t *testing.T) {
-// 	requestBody := `{
-//         "request": {
-//             "type": "SimpleUtterance",
-//             "command": "sudo do something"
-//         },
-//         "version": "1.0"
-//     }`
+func TestCompressHandle(t *testing.T) {
+	requestBody := `{
+        "request": {
+            "type": "SimpleUtterance",
+            "command": "sudo do something"
+        },
+        "version": "1.0"
+    }`
 
-// 	// ожидаемое содержимое тела ответа при успешном запросе
-// 	successBody := `{
-//         "response": {
-//             "text": "Извините, я пока ничего не умею"
-//         },
-//         "version": "1.0"
-//     }`
+	// ожидаемое содержимое тела ответа при успешном запросе
+	successBody := `{
+        "response": {
+            "text": "Извините, я пока ничего не умею"
+        },
+        "version": "1.0"
+    }`
 
-// 	webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		w.Write([]byte(successBody))
-// 	})
-// 	handler := CompressHandle(webhook)
+	webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(successBody))
+	})
+	handler := CompressHandle(webhook)
 
-// 	srv := httptest.NewServer(handler)
-// 	defer srv.Close()
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
 
-// 	c := resty.New()
-// 	t.Run("sends_gzip", func(t *testing.T) {
-// 		buf := bytes.NewBuffer(nil)
-// 		zb := gzip.NewWriter(buf)
-// 		_, err := zb.Write([]byte(requestBody))
-// 		require.NoError(t, err)
-// 		err = zb.Close()
-// 		require.NoError(t, err)
+	c := resty.New()
+	t.Run("sends_gzip", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		zb := gzip.NewWriter(buf)
+		_, err := zb.Write([]byte(requestBody))
+		require.NoError(t, err)
+		err = zb.Close()
+		require.NoError(t, err)
 
-// 		resp, err := c.R().SetBody(buf).
-// 			SetHeader("Content-Type", "application/json").
-// 			SetHeader("Content-Encoding", "gzip").
-// 			Post(srv.URL)
+		resp, err := c.R().SetBody(buf).
+			SetHeader("Content-Type", "application/json").
+			SetHeader("Content-Encoding", "gzip").
+			Post(srv.URL)
 
-// 		require.NoError(t, err)
-// 		require.Equal(t, http.StatusOK, resp.StatusCode())
-// 		require.JSONEq(t, successBody, resp.String())
-// 	})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode())
+		require.JSONEq(t, successBody, resp.String())
+	})
 
-// 	t.Run("accepts_gzip", func(t *testing.T) {
-// 		buf := bytes.NewBufferString(requestBody)
+	t.Run("accepts_gzip", func(t *testing.T) {
+		buf := bytes.NewBufferString(requestBody)
 
-// 		resp, err := c.R().SetBody(buf).
-// 			SetHeader("Content-Type", "application/json").
-// 			SetHeader("Accept-Encoding", "gzip").
-// 			Post(srv.URL)
+		resp, err := c.R().SetBody(buf).
+			SetHeader("Content-Type", "application/json").
+			SetHeader("Accept-Encoding", "gzip").
+			Post(srv.URL)
 
-// 		require.NoError(t, err)
-// 		require.Equal(t, http.StatusOK, resp.StatusCode())
-// 		require.JSONEq(t, successBody, resp.String())
-// 	})
-// }
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode())
+		require.JSONEq(t, successBody, resp.String())
+	})
+}
 
-// func TestGetCompressJSON(t *testing.T) {
-// 	type args struct {
-// 		m *models.Metrics
-// 	}
-// 	tests := []struct {
-// 		name string
-// 		args args
-// 		want string
-// 	}{
-// 		{
-// 			name: "test compress json",
-// 			args: args{models.NewMetricsForCounter("test", 25)},
-// 			want: `{"id": "test", "type": "counter", "delta": 25}`,
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			got, err := GetCompressedJSON(tt.args.m)
-// 			require.NoError(t, err)
+func TestGzipPool_GetCompressedJSON(t *testing.T) {
+	t.Run("check compress", func(t *testing.T) {
+		checkJSON := `{"test": "test"}`
+		pool := NewGzipPool(1)
+		defer pool.Close()
+		compressJSON, err := pool.GetCompressedJSON(checkJSON)
+		require.NoError(t, err)
+		require.NotEqual(t, checkJSON, compressJSON)
 
-// 			var buf bytes.Buffer
+		compressJSON, err = pool.GetCompressedJSON(checkJSON)
+		require.NoError(t, err)
+		require.NotEqual(t, checkJSON, compressJSON)
+	})
 
-// 			_, err = buf.Write(got)
-// 			require.NoError(t, err)
-// 			zr, err := gzip.NewReader(&buf)
-// 			require.NoError(t, err)
-// 			b, err := io.ReadAll(zr)
-// 			require.NoError(t, err)
-// 			require.JSONEq(t, tt.want, string(b))
-// 		})
-// 	}
-// }
+	t.Run("check closed pool", func(t *testing.T) {
+		checkJSON := `{"test": "test"}`
+		pool := NewGzipPool(1)
+		pool.Close()
+		_, err := pool.GetCompressedJSON(checkJSON)
+		require.Error(t, err)
+	})
+}
+
+func BenchmarkGzipPool_GetCompressedJSON(b *testing.B) {
+	pool := NewGzipPool(1)
+	defer pool.Close()
+
+	testMap := make(map[string]float64)
+
+	for i := 0.1; i < 1000; i++ {
+		name := fmt.Sprintf("test%f", i)
+		testMap[name] = i
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		pool.GetCompressedJSON(testMap)
+	}
+}
+
+func BenchmarkCompressHandle(b *testing.B) {
+	successBody := `{
+        "response": {
+            "text": "Извините, я пока ничего не умею"
+        },
+        "version": "1.0"
+    }`
+
+	webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(successBody))
+	})
+	pool := NewGzipPool(10)
+	defer pool.Close()
+	handler := pool.CompressHandle(webhook)
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	c := resty.New()
+
+	testMap := make(map[string]float64)
+
+	for i := 0.1; i < 1000; i++ {
+		name := fmt.Sprintf("test%f", i)
+		testMap[name] = i
+	}
+
+	requestBody, _ := pool.GetCompressedJSON(testMap)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.R().SetBody(requestBody).
+			SetHeader("Content-Type", "application/json").
+			SetHeader("Content-Encoding", "gzip").
+			SetHeader("Accept-Encoding", "gzip").
+			Post(srv.URL)
+	}
+}
+
+func TestGzipPool_CompressHandle(t *testing.T) {
+	requestBody := `{
+        "request": {
+            "type": "SimpleUtterance",
+            "command": "sudo do something"
+        },
+        "version": "1.0"
+    }`
+
+	// ожидаемое содержимое тела ответа при успешном запросе
+	successBody := `{
+        "response": {
+            "text": "Извините, я пока ничего не умею"
+        },
+        "version": "1.0"
+    }`
+
+	webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(successBody))
+	})
+
+	pool := NewGzipPool(1)
+	defer pool.Close()
+	handler := pool.CompressHandle(webhook)
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	c := resty.New()
+	t.Run("sends_gzip", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		zb := gzip.NewWriter(buf)
+		_, err := zb.Write([]byte(requestBody))
+		require.NoError(t, err)
+		err = zb.Close()
+		require.NoError(t, err)
+
+		resp, err := c.R().SetBody(buf).
+			SetHeader("Content-Type", "application/json").
+			SetHeader("Content-Encoding", "gzip").
+			Post(srv.URL)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode())
+		require.JSONEq(t, successBody, resp.String())
+	})
+
+	t.Run("accepts_gzip", func(t *testing.T) {
+		buf := bytes.NewBufferString(requestBody)
+
+		resp, err := c.R().SetBody(buf).
+			SetHeader("Content-Type", "application/json").
+			SetHeader("Accept-Encoding", "gzip").
+			Post(srv.URL)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode())
+		require.JSONEq(t, successBody, resp.String())
+	})
+}

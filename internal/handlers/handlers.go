@@ -377,11 +377,10 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 }
 
 // ServiceRouter return router for run server.
-func ServiceRouter(sh ServiceHandlers, key string) chi.Router {
-	hasher := hasher.NewHasher([]byte(key))
+func ServiceRouter(gp *compresses.GzipPool, hasher hasher.Hasher, sh ServiceHandlers) chi.Router {
 	r := chi.NewRouter()
 	r.Use(hasher.RequestHash)
-	r.Use(compresses.CompressHandle)
+	r.Use(gp.CompressHandle)
 	r.Use(logger.RequestLogger)
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", sh.all)

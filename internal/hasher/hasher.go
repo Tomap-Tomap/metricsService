@@ -6,6 +6,8 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"hash"
 	"io"
 	"net/http"
 
@@ -14,44 +16,41 @@ import (
 
 // Hasher It's structure witch defines methods for hashing data.
 type Hasher struct {
-	key []byte
+	key        []byte
+	hasherPool chan hash.Hash
 }
 
-func NewHasher(key []byte) Hasher {
-	return Hasher{key}
+func NewHasher(key []byte, rateLimit uint) Hasher {
+	hp := make(chan hash.Hash, rateLimit)
+	return Hasher{key, hp}
 }
 
-// HashingRequest do hash request body.
-func (h *Hasher) HashingRequest(req *resty.Request, body []byte) {
+func (h *Hasher) Close() {
+	close(h.hasherPool)
+}
+
+// HashingRequest adds HashSHA256 value in header.
+// HashSHA256 contains body hashed with key.
+func (h *Hasher) HashingRequest(req *resty.Request, body []byte) error {
 	if len(h.key) == 0 {
-		return
+		return nil
 	}
 
-	hash := hmac.New(sha256.New, h.key)
+	hash, err := h.getHash()
+
+	if err != nil {
+		return fmt.Errorf("get hash: %w", err)
+	}
+
+	defer h.putHash(hash)
 	hash.Write(body)
 	req.SetHeader("HashSHA256", hex.EncodeToString(hash.Sum(nil)))
-}
 
-type hashingResponseWriter struct {
-	http.ResponseWriter
-	bytes int
-	key   []byte
-}
-
-func (r *hashingResponseWriter) Write(b []byte) (int, error) {
-	h := hmac.New(sha256.New, []byte(r.key))
-	h.Write(b)
-	dst := h.Sum(nil)
-
-	r.ResponseWriter.Header().Add("HashSHA256", hex.EncodeToString(dst))
-
-	size, err := r.ResponseWriter.Write(b)
-	r.bytes += size
-	return size, err
+	return nil
 }
 
 // RequestHash return handler for middleware.
-// Handle checks hashed data.
+// Handle checks the Hash SHA256 request header for compliance with the specified key.
 func (h *Hasher) RequestHash(handler http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		hashHeader := r.Header.Get("HashSHA256")
@@ -70,7 +69,15 @@ func (h *Hasher) RequestHash(handler http.Handler) http.Handler {
 		}
 
 		r.Body = io.NopCloser(&buf)
-		hash := hmac.New(sha256.New, h.key)
+		hash, err := h.getHash()
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		defer h.putHash(hash)
+
 		hash.Write(buf.Bytes())
 		dst := hash.Sum(nil)
 		hh, err := hex.DecodeString(hashHeader)
@@ -88,10 +95,57 @@ func (h *Hasher) RequestHash(handler http.Handler) http.Handler {
 		hw := hashingResponseWriter{
 			ResponseWriter: w,
 			key:            h.key,
+			hasher:         h,
 		}
 
 		handler.ServeHTTP(&hw, r)
 	}
 
 	return http.HandlerFunc(logFn)
+}
+
+func (h *Hasher) getHash() (hash.Hash, error) {
+	select {
+	case w, ok := <-h.hasherPool:
+		if !ok {
+			return nil, fmt.Errorf("pool is closed")
+		}
+
+		return w, nil
+	default:
+	}
+
+	return hmac.New(sha256.New, h.key), nil
+}
+
+func (h *Hasher) putHash(ph hash.Hash) {
+	ph.Reset()
+	select {
+	case h.hasherPool <- ph:
+	default:
+	}
+}
+
+type hashingResponseWriter struct {
+	http.ResponseWriter
+	bytes  int
+	key    []byte
+	hasher *Hasher
+}
+
+func (r *hashingResponseWriter) Write(b []byte) (int, error) {
+	h, err := r.hasher.getHash()
+
+	if err != nil {
+		return 0, fmt.Errorf("get hash: %w", err)
+	}
+
+	h.Write(b)
+	dst := h.Sum(nil)
+
+	r.ResponseWriter.Header().Add("HashSHA256", hex.EncodeToString(dst))
+
+	size, err := r.ResponseWriter.Write(b)
+	r.bytes += size
+	return size, err
 }
