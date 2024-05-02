@@ -53,3 +53,19 @@ func TestMemStatsForServer_GetMap(t *testing.T) {
 		}
 	})
 }
+
+func BenchmarkReadMemStats(b *testing.B) {
+	ms, _ := NewMemStatsForServer()
+
+	for i := 0; i < b.N; i++ {
+		ms.ReadMemStats()
+	}
+}
+
+func BenchmarkGetMap(b *testing.B) {
+	ms, _ := NewMemStatsForServer()
+
+	for i := 0; i < b.N; i++ {
+		ms.GetMap()
+	}
+}
