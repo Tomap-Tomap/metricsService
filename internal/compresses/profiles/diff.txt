@@ -1,0 +1,51 @@
+File: compresses.test
+Type: alloc_space
+Time: May 1, 2024 at 9:06pm (MSK)
+Showing nodes accounting for -1926.38MB, 88.80% of 2169.40MB total
+Dropped 121 nodes (cum <= 10.85MB)
+      flat  flat%   sum%        cum   cum%
+-1144.98MB 52.78% 52.78% -1862.82MB 85.87%  compress/flate.NewWriter (inline)
+ -393.22MB 18.13% 70.90%  -717.84MB 33.09%  compress/flate.(*compressor).init
+ -233.88MB 10.78% 81.69%  -233.88MB 10.78%  compress/flate.newDeflateFast (inline)
+  -81.73MB  3.77% 85.45%   -81.73MB  3.77%  compress/flate.(*compressor).initDeflate (inline)
+  -25.79MB  1.19% 86.64%   -25.79MB  1.19%  net/http.init.func15
+  -24.19MB  1.11% 87.76%   -24.19MB  1.11%  regexp.(*bitState).reset
+  -13.53MB  0.62% 88.38%   -13.53MB  0.62%  compress/flate.(*huffmanEncoder).generate
+  -12.60MB  0.58% 88.96%   -12.60MB  0.58%  io.init.func1
+    6.03MB  0.28% 88.68%    10.55MB  0.49%  github.com/go-resty/resty/v2.createHTTPRequest
+   -1.50MB 0.069% 88.75%   -14.29MB  0.66%  compress/gzip.NewReader (partial-inline)
+   -1.01MB 0.046% 88.80%  -467.63MB 21.56%  github.com/DarkOmap/metricsService/internal/compresses.BenchmarkGzipPool_GetCompressedJSON
+    0.51MB 0.024% 88.77%    34.51MB  1.59%  github.com/DarkOmap/metricsService/internal/compresses.BenchmarkCompressHandle
+   -0.50MB 0.023% 88.80%   -27.31MB  1.26%  net/http.(*Request).write
+         0     0% 88.80%   -14.01MB  0.65%  compress/flate.(*Writer).Close (inline)
+         0     0% 88.80%   -14.01MB  0.65%  compress/flate.(*compressor).close
+         0     0% 88.80%   -11.02MB  0.51%  compress/flate.(*compressor).encSpeed
+         0     0% 88.80%   -11.02MB  0.51%  compress/flate.(*huffmanBitWriter).writeBlockDynamic
+         0     0% 88.80%   -14.01MB  0.65%  compress/gzip.(*Writer).Close
+         0     0% 88.80% -1861.32MB 85.80%  compress/gzip.(*Writer).Write
+         0     0% 88.80%    76.41MB  3.52%  github.com/DarkOmap/metricsService/internal/compresses.(*GzipPool).GetCompressedJSON
+         0     0% 88.80% -1388.75MB 64.02%  github.com/DarkOmap/metricsService/internal/compresses.(*compressWriter).Write
+         0     0% 88.80%    15.55MB  0.72%  github.com/DarkOmap/metricsService/internal/compresses.BenchmarkCompressHandle.(*GzipPool).CompressHandle.func2
+         0     0% 88.80% -1468.99MB 67.71%  github.com/DarkOmap/metricsService/internal/compresses.BenchmarkCompressHandle.CompressHandle.func2
+         0     0% 88.80% -1389.10MB 64.03%  github.com/DarkOmap/metricsService/internal/compresses.BenchmarkCompressHandle.func1
+         0     0% 88.80%  -542.87MB 25.02%  github.com/DarkOmap/metricsService/internal/compresses.GetCompressedJSON
+         0     0% 88.80%    31.36MB  1.45%  github.com/go-resty/resty/v2.(*Client).execute
+         0     0% 88.80%    31.36MB  1.45%  github.com/go-resty/resty/v2.(*Request).Execute
+         0     0% 88.80%    31.36MB  1.45%  github.com/go-resty/resty/v2.(*Request).Post (inline)
+         0     0% 88.80%   -24.69MB  1.14%  github.com/go-resty/resty/v2.IsJSONType (inline)
+         0     0% 88.80%   -24.19MB  1.11%  github.com/go-resty/resty/v2.parseRequestHeader
+         0     0% 88.80%   -12.60MB  0.58%  io.discard.ReadFrom
+         0     0% 88.80% -1455.59MB 67.10%  net/http.(*conn).serve
+         0     0% 88.80%   -27.31MB  1.26%  net/http.(*persistConn).writeLoop
+         0     0% 88.80%   -26.81MB  1.24%  net/http.(*transferWriter).doBodyCopy
+         0     0% 88.80%   -26.81MB  1.24%  net/http.(*transferWriter).writeBody
+         0     0% 88.80% -1453.09MB 66.98%  net/http.HandlerFunc.ServeHTTP
+         0     0% 88.80%   -25.79MB  1.19%  net/http.getCopyBuf (inline)
+         0     0% 88.80% -1453.09MB 66.98%  net/http.serverHandler.ServeHTTP
+         0     0% 88.80%   -24.69MB  1.14%  regexp.(*Regexp).MatchString (inline)
+         0     0% 88.80%   -24.69MB  1.14%  regexp.(*Regexp).backtrack
+         0     0% 88.80%   -24.69MB  1.14%  regexp.(*Regexp).doExecute
+         0     0% 88.80%   -24.69MB  1.14%  regexp.(*Regexp).doMatch (inline)
+         0     0% 88.80%   -39.89MB  1.84%  sync.(*Pool).Get
+         0     0% 88.80%  -434.51MB 20.03%  testing.(*B).launch
+         0     0% 88.80%  -433.12MB 19.96%  testing.(*B).runN

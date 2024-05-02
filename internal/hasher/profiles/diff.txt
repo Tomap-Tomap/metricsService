@@ -1,0 +1,100 @@
+File: hasher.test
+Type: alloc_space
+Time: May 2, 2024 at 11:49pm (MSK)
+Showing nodes accounting for -106.53MB, 34.86% of 305.57MB total
+Dropped 36 nodes (cum <= 1.53MB)
+      flat  flat%   sum%        cum   cum%
+  -94.01MB 30.77% 30.77%   -94.01MB 30.77%  crypto/sha256.New
+  -79.01MB 25.86% 56.62%  -173.02MB 56.62%  crypto/hmac.New
+   29.50MB  9.65% 46.97%    29.50MB  9.65%  encoding/hex.EncodeToString (inline)
+       7MB  2.29% 44.67%        7MB  2.29%  bytes.growSlice
+       6MB  1.96% 42.71%     7.50MB  2.45%  net/textproto.MIMEHeader.Set (inline)
+       5MB  1.64% 41.07%        5MB  1.64%  crypto/sha256.(*digest).Sum
+       5MB  1.64% 39.44%        5MB  1.64%  net/textproto.readMIMEHeader
+   -4.50MB  1.47% 40.91%    -4.50MB  1.47%  net/textproto.MIMEHeader.Add (inline)
+       4MB  1.31% 39.60%        4MB  1.31%  io.ReadAll
+       4MB  1.31% 38.29%     4.50MB  1.47%  net/http.NewRequestWithContext
+    3.50MB  1.15% 37.15%     3.50MB  1.15%  net/http.Header.Clone (inline)
+    2.50MB  0.82% 36.33%     2.50MB  0.82%  net/url.parse
+    2.50MB  0.82% 35.51%     2.50MB  0.82%  net/http.(*Transport).getConn
+       2MB  0.65% 34.86%        4MB  1.31%  net/http.ReadResponse
+       2MB  0.65% 34.20%        2MB  0.65%  net/textproto.canonicalMIMEHeaderKey
+   -1.50MB  0.49% 34.69%    -1.50MB  0.49%  net/http.(*transportRequest).extraHeaders (inline)
+      -1MB  0.33% 35.02%     4.50MB  1.47%  net/http.(*conn).readRequest
+       1MB  0.33% 34.69%        1MB  0.33%  net/http.setupRewindBody (inline)
+      -1MB  0.33% 35.02%        5MB  1.64%  net/http.readRequest
+      -1MB  0.33% 35.35%       -1MB  0.33%  net/http.newTransferWriter
+       1MB  0.33% 35.02%        1MB  0.33%  github.com/go-resty/resty/v2.init.func1
+      -1MB  0.33% 35.35%       -1MB  0.33%  github.com/go-resty/resty/v2.newRequestBodyReleaser (inline)
+       1MB  0.33% 35.02%     2.50MB  0.82%  net/http.(*Client).makeHeadersCopier
+   -0.53MB  0.17% 35.19%    -0.53MB  0.17%  net.open
+    0.52MB  0.17% 35.02%     0.52MB  0.17%  regexp.(*bitState).reset
+   -0.50MB  0.16% 35.19%        3MB  0.98%  net/http.(*persistConn).readLoop
+    0.50MB  0.16% 35.02%     7.50MB  2.46%  bytes.(*Buffer).grow
+    0.50MB  0.16% 34.86%     3.50MB  1.15%  github.com/DarkOmap/metricsService/internal/hasher.BenchmarkRequestHash.(*Hasher).RequestHash.func2
+   -0.50MB  0.16% 35.02%     2.50MB  0.82%  net/http.(*Transport).roundTrip
+    0.50MB  0.16% 34.86%     6.50MB  2.13%  github.com/go-resty/resty/v2.createHTTPRequest
+    0.50MB  0.16% 34.70%     1.50MB  0.49%  net/http.(*Request).write
+   -0.50MB  0.16% 34.86%     6.50MB  2.13%  net/http.(*conn).serve
+         0     0% 34.86%       -1MB  0.33%  bufio.(*Writer).Flush
+         0     0% 34.86%        7MB  2.29%  bytes.(*Buffer).ReadFrom
+         0     0% 34.86%        5MB  1.64%  crypto/hmac.(*hmac).Sum
+         0     0% 34.86%  -129.01MB 42.22%  github.com/DarkOmap/metricsService/internal/hasher.(*Hasher).HashingRequest
+         0     0% 34.86%     4.50MB  1.47%  github.com/DarkOmap/metricsService/internal/hasher.(*Hasher).getHash
+         0     0% 34.86%       -2MB  0.65%  github.com/DarkOmap/metricsService/internal/hasher.(*hashingResponseWriter).Write
+         0     0% 34.86%  -129.01MB 42.22%  github.com/DarkOmap/metricsService/internal/hasher.BenchmarkHashingRequest
+         0     0% 34.86%    14.02MB  4.59%  github.com/DarkOmap/metricsService/internal/hasher.BenchmarkRequestHash
+         0     0% 34.86%       -2MB  0.65%  github.com/DarkOmap/metricsService/internal/hasher.BenchmarkRequestHash.func1
+         0     0% 34.86%    14.52MB  4.75%  github.com/go-resty/resty/v2.(*Client).execute
+         0     0% 34.86%    14.52MB  4.75%  github.com/go-resty/resty/v2.(*Request).Execute
+         0     0% 34.86%    14.52MB  4.75%  github.com/go-resty/resty/v2.(*Request).Post (inline)
+         0     0% 34.86%     7.50MB  2.45%  github.com/go-resty/resty/v2.(*Request).SetHeader (inline)
+         0     0% 34.86%     0.52MB  0.17%  github.com/go-resty/resty/v2.IsJSONType (inline)
+         0     0% 34.86%        1MB  0.33%  github.com/go-resty/resty/v2.acquireBuffer (inline)
+         0     0% 34.86%        1MB  0.33%  github.com/go-resty/resty/v2.getBodyCopy
+         0     0% 34.86%     0.52MB  0.17%  github.com/go-resty/resty/v2.parseResponseBody
+         0     0% 34.86%       -1MB  0.33%  io.CopyN
+         0     0% 34.86%    -0.53MB  0.17%  net.(*ListenConfig).Listen
+         0     0% 34.86%    -0.53MB  0.17%  net.(*sysListener).listenTCP (inline)
+         0     0% 34.86%    -0.53MB  0.17%  net.(*sysListener).listenTCPProto
+         0     0% 34.86%    -0.53MB  0.17%  net.Listen
+         0     0% 34.86%    -0.53MB  0.17%  net.internetSocket
+         0     0% 34.86%    -0.53MB  0.17%  net.listenerBacklog
+         0     0% 34.86%    -0.53MB  0.17%  net.listenerBacklog.func1
+         0     0% 34.86%    -0.53MB  0.17%  net.maxListenerBacklog
+         0     0% 34.86%    -0.53MB  0.17%  net.socket
+         0     0% 34.86%        5MB  1.64%  net/http.(*Client).Do (inline)
+         0     0% 34.86%        5MB  1.64%  net/http.(*Client).do
+         0     0% 34.86%     2.50MB  0.82%  net/http.(*Client).send
+         0     0% 34.86%     2.50MB  0.82%  net/http.(*Transport).RoundTrip
+         0     0% 34.86%       -1MB  0.33%  net/http.(*chunkWriter).Write
+         0     0% 34.86%       -1MB  0.33%  net/http.(*chunkWriter).writeHeader
+         0     0% 34.86%        4MB  1.31%  net/http.(*persistConn).readResponse
+         0     0% 34.86%     1.50MB  0.49%  net/http.(*persistConn).writeLoop
+         0     0% 34.86%        2MB  0.65%  net/http.(*response).Write
+         0     0% 34.86%        2MB  0.65%  net/http.(*response).WriteHeader
+         0     0% 34.86%       -1MB  0.33%  net/http.(*response).finishRequest
+         0     0% 34.86%        2MB  0.65%  net/http.(*response).write
+         0     0% 34.86%     1.50MB  0.49%  net/http.(*transferWriter).writeBody
+         0     0% 34.86%     3.50MB  1.15%  net/http.HandlerFunc.ServeHTTP
+         0     0% 34.86%    -4.50MB  1.47%  net/http.Header.Add (inline)
+         0     0% 34.86%     7.50MB  2.45%  net/http.Header.Set (inline)
+         0     0% 34.86%     4.50MB  1.47%  net/http.NewRequest (inline)
+         0     0% 34.86%     1.50MB  0.49%  net/http.cloneOrMakeHeader
+         0     0% 34.86%     2.50MB  0.82%  net/http.send
+         0     0% 34.86%     3.50MB  1.15%  net/http.serverHandler.ServeHTTP
+         0     0% 34.86%    -0.53MB  0.17%  net/http/httptest.NewServer
+         0     0% 34.86%    -0.53MB  0.17%  net/http/httptest.NewUnstartedServer (inline)
+         0     0% 34.86%    -0.53MB  0.17%  net/http/httptest.newLocalListener
+         0     0% 34.86%        5MB  1.64%  net/textproto.(*Reader).ReadMIMEHeader (inline)
+         0     0% 34.86%        2MB  0.65%  net/textproto.CanonicalMIMEHeaderKey
+         0     0% 34.86%        3MB  0.98%  net/url.ParseRequestURI
+         0     0% 34.86%     0.52MB  0.17%  regexp.(*Regexp).MatchString (inline)
+         0     0% 34.86%     0.52MB  0.17%  regexp.(*Regexp).backtrack
+         0     0% 34.86%     0.52MB  0.17%  regexp.(*Regexp).doExecute
+         0     0% 34.86%     0.52MB  0.17%  regexp.(*Regexp).doMatch (inline)
+         0     0% 34.86%    -0.53MB  0.17%  sync.(*Once).Do (inline)
+         0     0% 34.86%    -0.53MB  0.17%  sync.(*Once).doSlow
+         0     0% 34.86%        1MB  0.33%  sync.(*Pool).Get
+         0     0% 34.86%     -115MB 37.63%  testing.(*B).launch
+         0     0% 34.86%     -115MB 37.63%  testing.(*B).runN
