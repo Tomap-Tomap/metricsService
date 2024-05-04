@@ -1,4 +1,4 @@
-// The package client defines a structure that sends data to the server.
+// Package client defines a structure that sends data to the server.
 package client
 
 import (
@@ -18,7 +18,7 @@ type Compresser interface {
 	GetCompressedJSON(m any) ([]byte, error)
 }
 
-// Agent it's structure witch send hashed data to server.
+// Client it's structure witch send hashed data to server.
 type Client struct {
 	addr        string
 	restyClient *resty.Client

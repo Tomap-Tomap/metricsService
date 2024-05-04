@@ -1,4 +1,4 @@
-// The package agent defines a structure that gets memory metrics and sends them to the server.
+// Package agent defines a structure that gets memory metrics and sends them to the server.
 package agent
 
 import (
