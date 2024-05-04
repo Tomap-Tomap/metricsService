@@ -118,9 +118,9 @@ func TestNewMetrics(t *testing.T) {
 		mType string
 	}
 	tests := []struct {
-		name    string
-		args    args
 		want    *Metrics
+		args    args
+		name    string
 		wantErr bool
 	}{
 		{
@@ -165,9 +165,9 @@ func TestNewModelByURL(t *testing.T) {
 		value     string
 	}
 	tests := []struct {
-		name    string
-		args    args
 		want    *Metrics
+		args    args
+		name    string
 		wantErr bool
 	}{
 		{
@@ -212,9 +212,9 @@ func TestNewModelsByJSON(t *testing.T) {
 		j []byte
 	}
 	tests := []struct {
-		name    string
-		args    args
 		want    *Metrics
+		args    args
+		name    string
 		wantErr bool
 	}{
 		{
@@ -319,9 +319,9 @@ func TestNewMetricsForGauge(t *testing.T) {
 		value float64
 	}
 	tests := []struct {
-		name string
-		args args
 		want *Metrics
+		args args
+		name string
 	}{
 		{
 			name: fmt.Sprintf("test %f", testGauge1),
@@ -358,9 +358,9 @@ func TestNewMetricsForCounter(t *testing.T) {
 		delta int64
 	}
 	tests := []struct {
-		name string
-		args args
 		want *Metrics
+		args args
+		name string
 	}{
 		{
 			name: fmt.Sprintf("test %d", testCounter1),
@@ -397,9 +397,9 @@ func Test_counterMetricsBySting(t *testing.T) {
 		delta string
 	}
 	tests := []struct {
-		name    string
-		args    args
 		want    *Metrics
+		args    args
+		name    string
 		wantErr bool
 	}{
 		{
@@ -448,9 +448,9 @@ func Test_gaugeMetricsByStrings(t *testing.T) {
 		value string
 	}
 	tests := []struct {
-		name    string
-		args    args
 		want    *Metrics
+		args    args
+		name    string
 		wantErr bool
 	}{
 		{

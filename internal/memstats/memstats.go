@@ -13,9 +13,9 @@ import (
 
 // MemStatsForServer stores statistics data and defines methods for working with it.
 type MemStatsForServer struct {
-	sync.RWMutex
-	runtime.MemStats
 	*mem.VirtualMemoryStat
+	runtime.MemStats
+	sync.RWMutex
 	CPUutilization float64
 	RandomValue    float64
 }

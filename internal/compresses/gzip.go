@@ -118,7 +118,7 @@ func (gp *GzipPool) GetCompressedJSON(m any) ([]byte, error) {
 		return nil, fmt.Errorf("failed write data to compress temporary buffer: %w", err)
 	}
 
-	if err = w.Close(); err != nil {
+	if err := w.Close(); err != nil {
 		return nil, fmt.Errorf("failed compress data: %w", err)
 	}
 

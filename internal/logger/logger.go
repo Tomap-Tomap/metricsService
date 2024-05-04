@@ -38,10 +38,10 @@ func Initialize(level string, outputPath string) error {
 
 type loggingResponseWriter struct {
 	http.ResponseWriter
-	wroteHeader bool
+	error       string
 	code        int
 	bytes       int
-	error       string
+	wroteHeader bool
 }
 
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {

@@ -20,10 +20,10 @@ type Compresser interface {
 
 // Client it's structure witch send hashed data to server.
 type Client struct {
-	addr        string
 	restyClient *resty.Client
-	hasher      hasher.Hasher
 	gp          Compresser
+	addr        string
+	hasher      hasher.Hasher
 }
 
 func NewClient(compresser Compresser, h hasher.Hasher, addr string) *Client {
@@ -36,10 +36,10 @@ func NewClient(compresser Compresser, h hasher.Hasher, addr string) *Client {
 		SetRetryMaxWaitTime(9 * time.Second)
 
 	c := &Client{
-		addr,
 		client,
-		h,
 		compresser,
+		addr,
+		h,
 	}
 
 	return c

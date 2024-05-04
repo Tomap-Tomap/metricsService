@@ -26,11 +26,11 @@ type MemStats interface {
 
 // Agent it's structure for calculate and send data to server.
 type Agent struct {
+	client         Client
+	ms             MemStats
+	pollCount      atomic.Int64
 	reportInterval uint
 	pollInterval   uint
-	client         Client
-	pollCount      atomic.Int64
-	ms             MemStats
 }
 
 func NewAgent(client Client, ms MemStats, reportInterval, pollInterval uint) *Agent {
