@@ -59,7 +59,12 @@ func (c *Client) SendGauge(ctx context.Context, name string, value float64) erro
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	c.hasher.HashingRequest(req, b)
+	err = c.hasher.HashingRequest(req, b)
+
+	if err != nil {
+		return fmt.Errorf("hashing request: %w", err)
+	}
+
 	resp, err := req.Post("http://" + c.addr + "/update")
 
 	if err != nil {
@@ -87,7 +92,12 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	c.hasher.HashingRequest(req, b)
+	err = c.hasher.HashingRequest(req, b)
+
+	if err != nil {
+		return fmt.Errorf("hashing request: %w", err)
+	}
+
 	resp, err := req.Post("http://" + c.addr + "/update")
 
 	if err != nil {
@@ -115,7 +125,12 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	c.hasher.HashingRequest(req, b)
+	err = c.hasher.HashingRequest(req, b)
+
+	if err != nil {
+		return fmt.Errorf("hashing request: %w", err)
+	}
+
 	resp, err := req.Post("http://" + c.addr + "/updates")
 
 	if err != nil {

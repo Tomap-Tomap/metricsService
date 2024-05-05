@@ -7,6 +7,8 @@ require (
 	github.com/go-resty/resty/v2 v2.11.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgx/v5 v5.5.3
+	github.com/kisielk/errcheck v1.7.0
+	github.com/securego/gosec/v2 v2.19.0
 	github.com/shirou/gopsutil/v3 v3.24.1
 	github.com/stretchr/testify v1.9.0
 	github.com/swaggo/http-swagger v1.3.4
@@ -14,6 +16,7 @@ require (
 	go.uber.org/zap v1.26.0
 	golang.org/x/sync v0.7.0
 	golang.org/x/tools v0.20.0
+	honnef.co/go/tools v0.4.7
 )
 
 require (
@@ -41,6 +44,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.22.0 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20221208152030-732eee02a75a // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect

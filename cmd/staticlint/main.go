@@ -1,6 +1,10 @@
 package main
 
 import (
+	"strings"
+
+	"github.com/kisielk/errcheck/errcheck"
+	"github.com/securego/gosec/v2/analyzers"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/multichecker"
 	"golang.org/x/tools/go/analysis/passes/appends"
@@ -51,6 +55,7 @@ import (
 	"golang.org/x/tools/go/analysis/passes/unusedresult"
 	"golang.org/x/tools/go/analysis/passes/unusedwrite"
 	"golang.org/x/tools/go/analysis/passes/usesgenerics"
+	"honnef.co/go/tools/staticcheck"
 )
 
 func main() {
@@ -104,6 +109,16 @@ func main() {
 		unusedwrite.Analyzer,
 		usesgenerics.Analyzer,
 	}
+
+	for _, v := range staticcheck.Analyzers {
+		if strings.Contains(v.Analyzer.Name, "SA") || strings.Contains(v.Analyzer.Name, "S1") {
+			checks = append(checks, v.Analyzer)
+		}
+	}
+
+	checks = append(checks, analyzers.BuildDefaultAnalyzers()...)
+	checks = append(checks, errcheck.Analyzer)
+
 	multichecker.Main(
 		checks...,
 	)

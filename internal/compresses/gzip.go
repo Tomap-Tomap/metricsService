@@ -140,7 +140,13 @@ func (gp *GzipPool) CompressHandle(next http.Handler) http.Handler {
 				return
 			}
 
-			zr.Reset(r.Body)
+			err = zr.Reset(r.Body)
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 			r.Body = &compressReader{ReadCloser: r.Body, Reader: zr}
 			defer r.Body.Close()
 			defer gp.putReader(zr)

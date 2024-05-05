@@ -73,7 +73,12 @@ func RequestLogger(h http.Handler) http.Handler {
 		start := time.Now()
 
 		var buf bytes.Buffer
-		buf.ReadFrom(r.Body)
+		_, err := buf.ReadFrom(r.Body)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		Log.Info("Got incoming HTTP request",
 			zap.String("uri", r.RequestURI),
