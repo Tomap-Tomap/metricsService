@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 
+	"github.com/DarkOmap/metricsService/internal/osexitcheck"
 	"github.com/kisielk/errcheck/errcheck"
 	"github.com/securego/gosec/v2/analyzers"
 	"golang.org/x/tools/go/analysis"
@@ -118,7 +119,7 @@ func main() {
 
 	checks = append(checks, analyzers.BuildDefaultAnalyzers()...)
 	checks = append(checks, errcheck.Analyzer)
-
+	checks = append(checks, osexitcheck.OSExitAnalyzer)
 	multichecker.Main(
 		checks...,
 	)
