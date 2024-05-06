@@ -1,47 +1,20 @@
+// Package logger defines structures and handles for logging.
 package logger
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
 	"go.uber.org/zap"
 )
 
-type (
-	loggingResponseWriter struct {
-		http.ResponseWriter
-		wroteHeader bool
-		code        int
-		bytes       int
-		error       string
-	}
-)
-
-func (r *loggingResponseWriter) Write(b []byte) (int, error) {
-	if !r.wroteHeader {
-		r.WriteHeader(http.StatusOK)
-	}
-
-	if r.code != http.StatusOK {
-		r.error = string(b)
-	}
-
-	size, err := r.ResponseWriter.Write(b)
-	r.bytes += size
-	return size, err
-}
-
-func (r *loggingResponseWriter) WriteHeader(statusCode int) {
-	if !r.wroteHeader {
-		r.code = statusCode
-		r.wroteHeader = true
-		r.ResponseWriter.WriteHeader(statusCode)
-	}
-}
-
+// Log it's singleton variable for working with logs.
 var Log *zap.Logger = zap.NewNop()
 
+// Initialize do initialize log variable.
 func Initialize(level string, outputPath string) error {
 	lvl, err := zap.ParseAtomicLevel(level)
 
@@ -63,14 +36,52 @@ func Initialize(level string, outputPath string) error {
 	return nil
 }
 
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	wroteHeader bool
+	code        int
+	bytes       int
+	error       string
+}
+
+func (r *loggingResponseWriter) Write(b []byte) (int, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
+	}
+
+	if r.code >= 300 {
+		r.error = string(b)
+	}
+
+	size, err := r.ResponseWriter.Write(b)
+	r.bytes += size
+	return size, err
+}
+
+func (r *loggingResponseWriter) WriteHeader(statusCode int) {
+	if !r.wroteHeader {
+		r.code = statusCode
+		r.wroteHeader = true
+		r.ResponseWriter.WriteHeader(statusCode)
+	}
+}
+
+// RequestLogger return handler for middleware.
+// RequestLogger may be logging requests.
 func RequestLogger(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
+		var buf bytes.Buffer
+		buf.ReadFrom(r.Body)
+
 		Log.Info("Got incoming HTTP request",
 			zap.String("uri", r.RequestURI),
 			zap.String("method", r.Method),
+			zap.String("body", buf.String()),
 		)
+
+		r.Body = io.NopCloser(&buf)
 
 		lw := loggingResponseWriter{
 			ResponseWriter: w,

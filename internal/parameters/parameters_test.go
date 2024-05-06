@@ -113,6 +113,7 @@ func setEnvForServer() ServerParameters {
 		StoreInterval:   10,
 		Restore:         true,
 		Key:             "key",
+		RateLimit:       5,
 	}
 	os.Setenv("ADDRESS", sp.FlagRunAddr)
 	os.Setenv("FILE_STORAGE_PATH", sp.FileStoragePath)
@@ -120,6 +121,7 @@ func setEnvForServer() ServerParameters {
 	os.Setenv("STORE_INTERVAL", "10")
 	os.Setenv("RESTORE", "true")
 	os.Setenv("KEY", sp.Key)
+	os.Setenv("RATE_LIMIT", "5")
 
 	return sp
 }
@@ -133,6 +135,7 @@ func setFlagsForServer() ServerParameters {
 		"-i=10",
 		"-r=false",
 		"-k=key",
+		"-l=5",
 	}
 
 	return ServerParameters{
@@ -142,6 +145,7 @@ func setFlagsForServer() ServerParameters {
 		StoreInterval:   10,
 		Restore:         false,
 		Key:             "key",
+		RateLimit:       5,
 	}
 }
 
@@ -153,5 +157,6 @@ func getDefaultParametersForServer() ServerParameters {
 		StoreInterval:   300,
 		Restore:         true,
 		Key:             "",
+		RateLimit:       10,
 	}
 }

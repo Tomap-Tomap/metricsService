@@ -3,11 +3,14 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/DarkOmap/metricsService/internal/compresses"
+	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-resty/resty/v2"
@@ -59,7 +62,7 @@ func (sm *StorageMockedObject) PingDB(ctx context.Context) error {
 }
 
 func (sm *StorageMockedObject) Updates(ctx context.Context, metrics []models.Metrics) error {
-	args := sm.Called()
+	args := sm.Called(metrics)
 
 	return args.Error(0)
 }
@@ -69,7 +72,8 @@ func TestServiceHandlers_updateByJSON(t *testing.T) {
 	ms.On("UpdateByMetrics", *models.NewMetricsForGauge("test", 1.1)).Return(models.NewMetricsForGauge("test", 1.1), nil)
 	ms.On("UpdateByMetrics", *models.NewMetricsForCounter("test", 1)).Return(models.NewMetricsForCounter("test", 1), nil)
 	sh := NewServiceHandlers(ms)
-	r := ServiceRouter(sh, "")
+	h := hasher.NewHasher(make([]byte, 0), 1)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -164,7 +168,8 @@ func TestServiceHandlers_updateByURL(t *testing.T) {
 	ms.On("UpdateByMetrics", *models.NewMetricsForGauge("test", 12)).Return(models.NewMetricsForGauge("test", 12), nil)
 	ms.On("UpdateByMetrics", *models.NewMetricsForCounter("test", 12)).Return(models.NewMetricsForCounter("test", 12), nil)
 	sh := NewServiceHandlers(ms)
-	r := ServiceRouter(sh, "")
+	h := hasher.NewHasher(make([]byte, 0), 1)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -254,7 +259,8 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 	ms.On("ValueByMetrics", *testCounter).Return(models.NewMetricsForCounter("test", 1), nil)
 
 	sh := NewServiceHandlers(ms)
-	r := ServiceRouter(sh, "")
+	h := hasher.NewHasher(make([]byte, 0), 1)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -329,7 +335,8 @@ func TestServiceHandlers_all(t *testing.T) {
 	ms.On("GetAllGauge").Return(map[string]storage.Gauge{"test": 1.1}, nil)
 	ms.On("GetAllCounter").Return(map[string]storage.Counter{"test": 1}, nil)
 	sh := NewServiceHandlers(ms)
-	r := ServiceRouter(sh, "")
+	h := hasher.NewHasher(make([]byte, 0), 1)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -426,7 +433,8 @@ func TestServiceHandlers_valueByJSON(t *testing.T) {
 	ms.On("ValueByMetrics", *testCounter).Return(models.NewMetricsForCounter("test", 1), nil)
 
 	sh := NewServiceHandlers(ms)
-	r := ServiceRouter(sh, "")
+	h := hasher.NewHasher(make([]byte, 0), 1)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -506,7 +514,8 @@ func TestServiceHandlers_valueByJSON(t *testing.T) {
 func TestServiceHandlers_ping(t *testing.T) {
 	ms := new(StorageMockedObject)
 	sh := NewServiceHandlers(ms)
-	r := ServiceRouter(sh, "")
+	h := hasher.NewHasher(make([]byte, 0), 1)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -526,4 +535,58 @@ func TestServiceHandlers_ping(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, res.StatusCode())
 	})
 	ms.AssertExpectations(t)
+}
+
+func TestServiceHandlers_updates(t *testing.T) {
+	ms := new(StorageMockedObject)
+	sh := NewServiceHandlers(ms)
+	h := hasher.NewHasher(make([]byte, 0), 1)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	t.Run("bad body", func(t *testing.T) {
+		res := testRequest(t, srv, http.MethodPost, "/updates", "")
+		assert.Equal(t, http.StatusBadRequest, res.StatusCode())
+	})
+
+	badModelJSON := `
+	[
+		{
+			"id": "error",
+			"type": "counter",
+			"delta": 1
+		}
+	]
+	`
+	badModel, err := models.NewMetricsSliceByJSON([]byte(badModelJSON))
+	require.NoError(t, err)
+
+	ms.On("Updates", badModel).Return(fmt.Errorf("test error"))
+
+	goodModelJSON := `
+	[
+		{
+			"id": "error",
+			"type": "counter",
+			"delta": 2
+		}
+	]
+	`
+
+	goodModel, err := models.NewMetricsSliceByJSON([]byte(goodModelJSON))
+	require.NoError(t, err)
+
+	ms.On("Updates", goodModel).Return(nil)
+
+	t.Run("test 500", func(t *testing.T) {
+		res := testRequest(t, srv, http.MethodPost, "/updates", badModelJSON)
+		assert.Equal(t, http.StatusInternalServerError, res.StatusCode())
+	})
+
+	t.Run("test 200", func(t *testing.T) {
+		res := testRequest(t, srv, http.MethodPost, "/updates", goodModelJSON)
+		assert.Equal(t, http.StatusOK, res.StatusCode())
+	})
 }

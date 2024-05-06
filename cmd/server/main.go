@@ -1,3 +1,5 @@
+// Server main package.
+// Server defines handlers for collecting metrics and stores them in the database.
 package main
 
 import (
@@ -6,15 +8,38 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/DarkOmap/metricsService/handlers"
+	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/file"
-	"github.com/DarkOmap/metricsService/internal/handlers"
+	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
-	"github.com/jackc/pgx/v5"
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
+	_ "github.com/DarkOmap/metricsService/swagger"
 )
+
+//	@Title			MetricsSevice API
+//	@Description	Service to communicate with storage.
+//	@Version		1.0
+
+//	@Contact.email	timur.konoplev@yandex.ru
+
+//	@BasePath	/
+//	@Host		localhost:8080
+
+//	@SecurityDefinitions.apikey	ApiKeyAuth
+//	@In							header
+//	@Name						HashSHA256
+
+//	@Tag.name			Update
+//	@Tag.description	"Query group for updates on metrics data"
+
+//	@Tag.name			Value
+//	@Tag.description	"Query group for metrics data retrieval"
 
 func main() {
 	p := parameters.ParseFlagsServer()
@@ -39,12 +64,12 @@ func main() {
 	if p.DataBaseDSN != "" {
 		logger.Log.Info("Create database storage")
 
-		conn, err := pgx.Connect(ctx, p.DataBaseDSN)
+		conn, err := pgxpool.New(ctx, p.DataBaseDSN)
 
 		if err != nil {
 			logger.Log.Fatal("Connect to database", zap.Error(err))
 		}
-		defer conn.Close(ctx)
+		defer conn.Close()
 
 		ms, err = storage.NewDBStorage(conn)
 
@@ -61,8 +86,17 @@ func main() {
 
 	logger.Log.Info("Create handlers")
 	sh := handlers.NewServiceHandlers(ms)
+
+	logger.Log.Info("Create gzip pool")
+	pool := compresses.NewGzipPool(p.RateLimit)
+	defer pool.Close()
+
+	logger.Log.Info("Create hasher pool")
+	h := hasher.NewHasher([]byte(p.Key), p.RateLimit)
+	defer h.Close()
+
 	logger.Log.Info("Create routers")
-	r := handlers.ServiceRouter(sh, p.Key)
+	r := handlers.ServiceRouter(pool, h, sh)
 
 	logger.Log.Info("Create server")
 	httpServer := &http.Server{

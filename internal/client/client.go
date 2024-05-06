@@ -1,3 +1,4 @@
+// The package client defines a structure that sends data to the server.
 package client
 
 import (
@@ -8,22 +9,47 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/go-resty/resty/v2"
 )
 
+type Compresser interface {
+	GetCompressedJSON(m any) ([]byte, error)
+}
+
+// Agent it's structure witch send hashed data to server.
 type Client struct {
 	addr        string
 	restyClient *resty.Client
 	hasher      hasher.Hasher
+	gp          Compresser
 }
 
+func NewClient(compresser Compresser, h hasher.Hasher, addr string) *Client {
+	client := resty.New().
+		AddRetryCondition(func(r *resty.Response, err error) bool {
+			return errors.Is(err, syscall.ECONNREFUSED)
+		}).
+		SetRetryCount(3).
+		SetRetryWaitTime(1 * time.Second).
+		SetRetryMaxWaitTime(9 * time.Second)
+
+	c := &Client{
+		addr,
+		client,
+		h,
+		compresser,
+	}
+
+	return c
+}
+
+// SendGauge send float64 value to server.
 func (c *Client) SendGauge(ctx context.Context, name string, value float64) error {
 	m := models.NewMetricsForGauge(name, value)
 
-	b, err := compresses.GetCompressedJSON(m)
+	b, err := c.gp.GetCompressedJSON(m)
 
 	if err != nil {
 		return fmt.Errorf("failed compress model name %s value %f: %w", name, value, err)
@@ -47,10 +73,11 @@ func (c *Client) SendGauge(ctx context.Context, name string, value float64) erro
 	return nil
 }
 
+// SendCounter send int64 value to server.
 func (c *Client) SendCounter(ctx context.Context, name string, delta int64) error {
 	m := models.NewMetricsForCounter(name, delta)
 
-	b, err := compresses.GetCompressedJSON(m)
+	b, err := c.gp.GetCompressedJSON(m)
 
 	if err != nil {
 		return fmt.Errorf("failed compress model name %s delta %d: %w", name, delta, err)
@@ -74,10 +101,11 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 	return nil
 }
 
+// SendBatch send batch data to server.
 func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error {
 	m := models.GetGaugesSliceByMap(batch)
 
-	b, err := compresses.GetCompressedJSON(m)
+	b, err := c.gp.GetCompressedJSON(m)
 
 	if err != nil {
 		return fmt.Errorf("failed compress batch: %w", err)
@@ -99,15 +127,4 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 	}
 
 	return nil
-}
-
-func NewClient(addr, key string) *Client {
-	client := resty.New().
-		AddRetryCondition(func(r *resty.Response, err error) bool {
-			return errors.Is(err, syscall.ECONNREFUSED)
-		}).
-		SetRetryCount(3).
-		SetRetryWaitTime(1 * time.Second).
-		SetRetryMaxWaitTime(9 * time.Second)
-	return &Client{addr, client, hasher.NewHasher([]byte(key))}
 }

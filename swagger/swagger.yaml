@@ -1,0 +1,252 @@
+basePath: /
+definitions:
+  models.Metrics:
+    description: Metric information type may be "gauge" or "counter"
+    properties:
+      delta:
+        type: integer
+      id:
+        type: string
+      type:
+        type: string
+      value:
+        type: number
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: timur.konoplev@yandex.ru
+  description: Service to communicate with storage.
+  title: MetricsSevice API
+  version: "1.0"
+paths:
+  /:
+    get:
+      consumes:
+      - text/plain
+      description: Return all metric value
+      operationId: valueAll
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Return all metrics
+      tags:
+      - Value
+  /ping:
+    get:
+      consumes:
+      - text/plain
+      description: Check storage work
+      operationId: Ping
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Ping storage
+  /update:
+    post:
+      consumes:
+      - application/json
+      description: Create new or update existing metric data.
+      operationId: updateUpdateByJSON
+      parameters:
+      - description: A JSON object with `id`, `type`, `value` of `delta` properties
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.Metrics'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Metrics'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Update metrics data
+      tags:
+      - Update
+  /update/{type}/{name}/{value}:
+    post:
+      consumes:
+      - text/plain
+      description: Create new or update existing metric data.
+      operationId: updateUpdateByURL
+      parameters:
+      - description: Metrics' name
+        example: '"test"'
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Metrics' type (counter or gauge)
+        example: '"gauge"'
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: Metrics' value (integer or float)
+        example: '"1.1"'
+        in: path
+        name: value
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Update metrics data
+      tags:
+      - Update
+  /updates:
+    post:
+      consumes:
+      - application/json
+      description: Create new or update existing metrics data.
+      operationId: updateUpdates
+      parameters:
+      - description: A JSON objects with `id`, `type`, `value` of `delta` properties
+        in: body
+        name: request
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/models.Metrics'
+          type: array
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Multiply metrics update
+      tags:
+      - Update
+  /value:
+    post:
+      consumes:
+      - application/json
+      description: Return metric value
+      operationId: valueValueByJSON
+      parameters:
+      - description: A JSON object with `id`, `type` properties
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.Metrics'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Metrics'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Return metrics
+      tags:
+      - Value
+  /value/{type}/{name}:
+    get:
+      consumes:
+      - text/plain
+      description: Return metric value
+      operationId: valueValueByURL
+      parameters:
+      - description: Metrics' name
+        example: '"test"'
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Metrics' type (counter or gauge)
+        example: '"gauge"'
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Return metrics
+      tags:
+      - Value
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: HashSHA256
+    type: apiKey
+swagger: "2.0"
+tags:
+- description: '"Query group for updates on metrics data"'
+  name: Update
+- description: '"Query group for metrics data retrieval"'
+  name: Value
