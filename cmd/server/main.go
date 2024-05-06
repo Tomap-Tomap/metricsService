@@ -26,6 +26,7 @@ var (
 	buildVersion string
 	buildDate    string
 	buildCommit  string
+
 )
 
 //	@Title			MetricsSevice API
