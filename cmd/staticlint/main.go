@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 
+	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/osexitcheck"
 	"github.com/kisielk/errcheck/errcheck"
 	"github.com/securego/gosec/v2/analyzers"
@@ -59,7 +60,14 @@ import (
 	"honnef.co/go/tools/staticcheck"
 )
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
 func main() {
+	logger.DisplayBuild(buildVersion, buildDate, buildCommit)
 	checks := []*analysis.Analyzer{
 		appends.Analyzer,
 		asmdecl.Analyzer,

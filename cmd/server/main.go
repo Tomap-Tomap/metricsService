@@ -22,6 +22,12 @@ import (
 	_ "github.com/DarkOmap/metricsService/swagger"
 )
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
 //	@Title			MetricsSevice API
 //	@Description	Service to communicate with storage.
 //	@Version		1.0
@@ -42,6 +48,7 @@ import (
 //	@Tag.description	"Query group for metrics data retrieval"
 
 func main() {
+	logger.DisplayBuild(buildVersion, buildDate, buildCommit)
 	p := parameters.ParseFlagsServer()
 
 	if err := logger.Initialize("INFO", "stderr"); err != nil {

@@ -19,7 +19,14 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
 func main() {
+	logger.DisplayBuild(buildVersion, buildDate, buildCommit)
 	p := parameters.ParseFlagsAgent()
 
 	if err := logger.Initialize("INFO", "stderr"); err != nil {
