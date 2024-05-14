@@ -29,6 +29,10 @@ type Repository interface {
 	Updates(ctx context.Context, metrics []models.Metrics) error
 }
 
+type Decrypter interface {
+	DecryptHandle(next http.Handler) http.Handler
+}
+
 type ServiceHandlers struct {
 	ms Repository
 }
@@ -377,8 +381,9 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 }
 
 // ServiceRouter return router for run server.
-func ServiceRouter(gp *compresses.GzipPool, hasher hasher.Hasher, sh ServiceHandlers) chi.Router {
+func ServiceRouter(gp *compresses.GzipPool, hasher hasher.Hasher, sh ServiceHandlers, dm Decrypter) chi.Router {
 	r := chi.NewRouter()
+	r.Use(dm.DecryptHandle)
 	r.Use(hasher.RequestHash)
 	r.Use(gp.CompressHandle)
 	r.Use(logger.RequestLogger)

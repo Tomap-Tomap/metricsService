@@ -67,13 +67,25 @@ func (sm *StorageMockedObject) Updates(ctx context.Context, metrics []models.Met
 	return args.Error(0)
 }
 
+type DecrypterMockedObject struct {
+}
+
+func (dmo *DecrypterMockedObject) DecryptHandle(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+	})
+}
+
 func TestServiceHandlers_updateByJSON(t *testing.T) {
 	ms := new(StorageMockedObject)
 	ms.On("UpdateByMetrics", *models.NewMetricsForGauge("test", 1.1)).Return(models.NewMetricsForGauge("test", 1.1), nil)
 	ms.On("UpdateByMetrics", *models.NewMetricsForCounter("test", 1)).Return(models.NewMetricsForCounter("test", 1), nil)
+
+	dmo := new(DecrypterMockedObject)
+
 	sh := NewServiceHandlers(ms)
 	h := hasher.NewHasher(make([]byte, 0), 1)
-	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh, dmo)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -167,9 +179,12 @@ func TestServiceHandlers_updateByURL(t *testing.T) {
 	ms := new(StorageMockedObject)
 	ms.On("UpdateByMetrics", *models.NewMetricsForGauge("test", 12)).Return(models.NewMetricsForGauge("test", 12), nil)
 	ms.On("UpdateByMetrics", *models.NewMetricsForCounter("test", 12)).Return(models.NewMetricsForCounter("test", 12), nil)
+
+	dmo := new(DecrypterMockedObject)
+
 	sh := NewServiceHandlers(ms)
 	h := hasher.NewHasher(make([]byte, 0), 1)
-	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh, dmo)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -258,9 +273,11 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 	require.NoError(t, err)
 	ms.On("ValueByMetrics", *testCounter).Return(models.NewMetricsForCounter("test", 1), nil)
 
+	dmo := new(DecrypterMockedObject)
+
 	sh := NewServiceHandlers(ms)
 	h := hasher.NewHasher(make([]byte, 0), 1)
-	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh, dmo)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -334,9 +351,12 @@ func TestServiceHandlers_all(t *testing.T) {
 	ms := new(StorageMockedObject)
 	ms.On("GetAllGauge").Return(map[string]storage.Gauge{"test": 1.1}, nil)
 	ms.On("GetAllCounter").Return(map[string]storage.Counter{"test": 1}, nil)
+
+	dmo := new(DecrypterMockedObject)
+
 	sh := NewServiceHandlers(ms)
 	h := hasher.NewHasher(make([]byte, 0), 1)
-	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh, dmo)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -432,9 +452,11 @@ func TestServiceHandlers_valueByJSON(t *testing.T) {
 	require.NoError(t, err)
 	ms.On("ValueByMetrics", *testCounter).Return(models.NewMetricsForCounter("test", 1), nil)
 
+	dmo := new(DecrypterMockedObject)
+
 	sh := NewServiceHandlers(ms)
 	h := hasher.NewHasher(make([]byte, 0), 1)
-	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh, dmo)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -513,9 +535,10 @@ func TestServiceHandlers_valueByJSON(t *testing.T) {
 
 func TestServiceHandlers_ping(t *testing.T) {
 	ms := new(StorageMockedObject)
+	dmo := new(DecrypterMockedObject)
 	sh := NewServiceHandlers(ms)
 	h := hasher.NewHasher(make([]byte, 0), 1)
-	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh, dmo)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -539,9 +562,10 @@ func TestServiceHandlers_ping(t *testing.T) {
 
 func TestServiceHandlers_updates(t *testing.T) {
 	ms := new(StorageMockedObject)
+	dmo := new(DecrypterMockedObject)
 	sh := NewServiceHandlers(ms)
 	h := hasher.NewHasher(make([]byte, 0), 1)
-	r := ServiceRouter(compresses.NewGzipPool(1), h, sh)
+	r := ServiceRouter(compresses.NewGzipPool(1), h, sh, dmo)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()

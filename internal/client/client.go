@@ -18,15 +18,20 @@ type Compresser interface {
 	GetCompressedJSON(m any) ([]byte, error)
 }
 
+type Encrypter interface {
+	EncryptMessage(m []byte) ([]byte, error)
+}
+
 // Client it's structure witch send hashed data to server.
 type Client struct {
 	restyClient *resty.Client
 	gp          Compresser
+	encrypter   Encrypter
 	addr        string
 	hasher      hasher.Hasher
 }
 
-func NewClient(compresser Compresser, h hasher.Hasher, addr string) *Client {
+func NewClient(compresser Compresser, encrypter Encrypter, h hasher.Hasher, addr string) *Client {
 	client := resty.New().
 		AddRetryCondition(func(r *resty.Response, err error) bool {
 			return errors.Is(err, syscall.ECONNREFUSED)
@@ -38,6 +43,7 @@ func NewClient(compresser Compresser, h hasher.Hasher, addr string) *Client {
 	c := &Client{
 		client,
 		compresser,
+		encrypter,
 		addr,
 		h,
 	}
@@ -53,6 +59,12 @@ func (c *Client) SendGauge(ctx context.Context, name string, value float64) erro
 
 	if err != nil {
 		return fmt.Errorf("failed compress model name %s value %f: %w", name, value, err)
+	}
+
+	b, err = c.encrypter.EncryptMessage(b)
+
+	if err != nil {
+		return fmt.Errorf("failed encrypt message: %w", err)
 	}
 
 	req := c.restyClient.R().SetBody(b).
@@ -88,6 +100,12 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 		return fmt.Errorf("failed compress model name %s delta %d: %w", name, delta, err)
 	}
 
+	b, err = c.encrypter.EncryptMessage(b)
+
+	if err != nil {
+		return fmt.Errorf("failed encrypt message: %w", err)
+	}
+
 	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
@@ -119,6 +137,12 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 
 	if err != nil {
 		return fmt.Errorf("failed compress batch: %w", err)
+	}
+
+	b, err = c.encrypter.EncryptMessage(b)
+
+	if err != nil {
+		return fmt.Errorf("failed encrypt message: %w", err)
 	}
 
 	req := c.restyClient.R().SetBody(b).

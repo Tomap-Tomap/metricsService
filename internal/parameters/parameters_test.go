@@ -12,6 +12,7 @@ func TestParseFlagsAgent(t *testing.T) {
 		f                  func()
 		name               string
 		wantListenAddr     string
+		wantCKP            string
 		wantKey            string
 		wantReportInterval uint
 		wantPollInterval   uint
@@ -21,6 +22,7 @@ func TestParseFlagsAgent(t *testing.T) {
 			name:               "test env",
 			f:                  setEnv,
 			wantListenAddr:     "testEnv",
+			wantCKP:            "testPath",
 			wantReportInterval: 10,
 			wantPollInterval:   10,
 			wantKey:            "key",
@@ -30,6 +32,7 @@ func TestParseFlagsAgent(t *testing.T) {
 			name:               "test flags",
 			f:                  setFlags,
 			wantListenAddr:     "testFlags",
+			wantCKP:            "testPath",
 			wantReportInterval: 100,
 			wantPollInterval:   100,
 			wantKey:            "key",
@@ -39,6 +42,7 @@ func TestParseFlagsAgent(t *testing.T) {
 			name:               "test default",
 			f:                  nil,
 			wantListenAddr:     "localhost:8080",
+			wantCKP:            "",
 			wantReportInterval: 10,
 			wantPollInterval:   2,
 			wantKey:            "",
@@ -56,6 +60,9 @@ func TestParseFlagsAgent(t *testing.T) {
 			assert.Equal(t, tt.wantListenAddr, p.ListenAddr)
 			assert.Equal(t, tt.wantReportInterval, p.ReportInterval)
 			assert.Equal(t, tt.wantPollInterval, p.PollInterval)
+			assert.Equal(t, tt.wantCKP, p.CryptoKeyPath)
+			assert.Equal(t, tt.wantKey, p.Key)
+			assert.Equal(t, tt.wantRL, p.RateLimit)
 
 			delParameters()
 		})
@@ -64,6 +71,7 @@ func TestParseFlagsAgent(t *testing.T) {
 
 func setEnv() {
 	os.Setenv("ADDRESS", "testEnv")
+	os.Setenv("CRYPTO_KEY", "testPath")
 	os.Setenv("REPORT_INTERVAL", "10")
 	os.Setenv("POLL_INTERVAL", "10")
 	os.Setenv("KEY", "key")
@@ -71,7 +79,7 @@ func setEnv() {
 }
 
 func setFlags() {
-	os.Args = []string{"test", "-a=testFlags", "-r=100", "-p=100", "-k=key", "-l=5"}
+	os.Args = []string{"test", "-a=testFlags", "-crypto-key=testPath", "-r=100", "-p=100", "-k=key", "-l=5"}
 }
 
 func delParameters() {
@@ -109,6 +117,7 @@ func setEnvForServer() ServerParameters {
 	sp := ServerParameters{
 		FlagRunAddr:     "testEnv",
 		FileStoragePath: "/tmp/test.json",
+		CryptoKeyPath:   "testPath",
 		DataBaseDSN:     "test",
 		StoreInterval:   10,
 		Restore:         true,
@@ -117,6 +126,7 @@ func setEnvForServer() ServerParameters {
 	}
 	os.Setenv("ADDRESS", sp.FlagRunAddr)
 	os.Setenv("FILE_STORAGE_PATH", sp.FileStoragePath)
+	os.Setenv("CRYPTO_KEY", sp.CryptoKeyPath)
 	os.Setenv("DATABASE_DSN", sp.DataBaseDSN)
 	os.Setenv("STORE_INTERVAL", "10")
 	os.Setenv("RESTORE", "true")
@@ -131,6 +141,7 @@ func setFlagsForServer() ServerParameters {
 		"test",
 		"-a=testFlags",
 		"-f=/tmp/test/test.json",
+		"-crypto-key=testPath",
 		"-d=testdb",
 		"-i=10",
 		"-r=false",
@@ -141,6 +152,7 @@ func setFlagsForServer() ServerParameters {
 	return ServerParameters{
 		FlagRunAddr:     "testFlags",
 		FileStoragePath: "/tmp/test/test.json",
+		CryptoKeyPath:   "testPath",
 		DataBaseDSN:     "testdb",
 		StoreInterval:   10,
 		Restore:         false,
@@ -153,6 +165,7 @@ func getDefaultParametersForServer() ServerParameters {
 	return ServerParameters{
 		FlagRunAddr:     "localhost:8080",
 		FileStoragePath: "/tmp/metrics-db.json",
+		CryptoKeyPath:   "",
 		DataBaseDSN:     "",
 		StoreInterval:   300,
 		Restore:         true,

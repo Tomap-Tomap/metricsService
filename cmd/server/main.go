@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/DarkOmap/metricsService/handlers"
+	"github.com/DarkOmap/metricsService/internal/certmanager"
 	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/hasher"
@@ -26,7 +27,6 @@ var (
 	buildVersion string
 	buildDate    string
 	buildCommit  string
-
 )
 
 //	@Title			MetricsSevice API
@@ -62,6 +62,13 @@ func main() {
 		logger.Log.Fatal("Create file producer", zap.Error(err))
 	}
 	defer producer.Close()
+
+	logger.Log.Info("Create decrypt manager")
+	dm, err := certmanager.NewDecryptManager(p.CryptoKeyPath)
+
+	if err != nil {
+		logger.Log.Fatal("Create decrypt manager", zap.Error(err))
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer cancel()
@@ -104,7 +111,7 @@ func main() {
 	defer h.Close()
 
 	logger.Log.Info("Create routers")
-	r := handlers.ServiceRouter(pool, h, sh)
+	r := handlers.ServiceRouter(pool, h, sh, dm)
 
 	logger.Log.Info("Create server")
 	httpServer := &http.Server{

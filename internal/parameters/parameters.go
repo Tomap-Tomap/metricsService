@@ -10,6 +10,7 @@ import (
 // AgentParameters contains parameters for agent.
 type AgentParameters struct {
 	ListenAddr     string
+	CryptoKeyPath  string
 	Key            string
 	ReportInterval uint
 	RateLimit      uint
@@ -20,11 +21,16 @@ type AgentParameters struct {
 func ParseFlagsAgent() (p AgentParameters) {
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
+	f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
 	f.StringVar(&p.Key, "k", "", "hash key")
 	f.UintVar(&p.ReportInterval, "r", 10, "report interval")
 	f.UintVar(&p.PollInterval, "p", 2, "poll interval")
 	f.UintVar(&p.RateLimit, "l", 10, "rate limit")
 	f.Parse(os.Args[1:])
+
+	if envCKP := os.Getenv("CRYPTO_KEY"); envCKP != "" {
+		p.CryptoKeyPath = envCKP
+	}
 
 	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
 		p.ListenAddr = envAddr
@@ -65,6 +71,7 @@ func ParseFlagsAgent() (p AgentParameters) {
 type ServerParameters struct {
 	FlagRunAddr     string
 	FileStoragePath string
+	CryptoKeyPath   string
 	DataBaseDSN     string
 	Key             string
 	StoreInterval   uint
@@ -78,6 +85,7 @@ func ParseFlagsServer() (p ServerParameters) {
 	f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
 	f.StringVar(&p.Key, "k", "", "hash key")
 	f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
+	f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
 	f.StringVar(
 		&p.DataBaseDSN,
 		"d",
@@ -99,6 +107,10 @@ func ParseFlagsServer() (p ServerParameters) {
 
 	if envSP := os.Getenv("FILE_STORAGE_PATH"); envSP != "" {
 		p.FileStoragePath = envSP
+	}
+
+	if envCKP := os.Getenv("CRYPTO_KEY"); envCKP != "" {
+		p.CryptoKeyPath = envCKP
 	}
 
 	if envDB := os.Getenv("DATABASE_DSN"); envDB != "" {

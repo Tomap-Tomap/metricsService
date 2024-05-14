@@ -10,6 +10,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/DarkOmap/metricsService/internal/agent"
+	"github.com/DarkOmap/metricsService/internal/certmanager"
 	"github.com/DarkOmap/metricsService/internal/client"
 	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/hasher"
@@ -33,6 +34,13 @@ func main() {
 		panic(err)
 	}
 
+	logger.Log.Info("Create encrypt manager")
+	em, err := certmanager.NewEncryptManager(p.CryptoKeyPath)
+
+	if err != nil {
+		logger.Log.Fatal("Create encrypt manager", zap.Error(err))
+	}
+
 	logger.Log.Info("Create gzip pool")
 	pool := compresses.NewGzipPool(p.RateLimit)
 	defer pool.Close()
@@ -40,7 +48,7 @@ func main() {
 	h := hasher.NewHasher([]byte(p.Key), p.RateLimit)
 	defer h.Close()
 	logger.Log.Info("Create client")
-	c := client.NewClient(pool, h, p.ListenAddr)
+	c := client.NewClient(pool, em, h, p.ListenAddr)
 	logger.Log.Info("Init mem stats")
 	ms, err := memstats.NewMemStatsForServer()
 
