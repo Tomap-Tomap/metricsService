@@ -3,7 +3,9 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/DarkOmap/metricsService/handlers"
+	"github.com/DarkOmap/metricsService/internal/certmanager"
 	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/hasher"
@@ -20,6 +23,12 @@ import (
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
 	_ "github.com/DarkOmap/metricsService/swagger"
+)
+
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
 )
 
 //	@Title			MetricsSevice API
@@ -42,6 +51,7 @@ import (
 //	@Tag.description	"Query group for metrics data retrieval"
 
 func main() {
+	displayBuild(buildVersion, buildDate, buildCommit)
 	p := parameters.ParseFlagsServer()
 
 	if err := logger.Initialize("INFO", "stderr"); err != nil {
@@ -54,6 +64,13 @@ func main() {
 		logger.Log.Fatal("Create file producer", zap.Error(err))
 	}
 	defer producer.Close()
+
+	logger.Log.Info("Create decrypt manager")
+	dm, err := certmanager.NewDecryptManager(p.CryptoKeyPath)
+
+	if err != nil {
+		logger.Log.Fatal("Create decrypt manager", zap.Error(err))
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer cancel()
@@ -96,7 +113,7 @@ func main() {
 	defer h.Close()
 
 	logger.Log.Info("Create routers")
-	r := handlers.ServiceRouter(pool, h, sh)
+	r := handlers.ServiceRouter(pool, h, sh, dm)
 
 	logger.Log.Info("Create server")
 	httpServer := &http.Server{
@@ -122,4 +139,14 @@ func main() {
 	if err := eg.Wait(); err != nil {
 		logger.Log.Fatal("Problem with working server", zap.Error(err))
 	}
+}
+
+func displayBuild(version, date, commit string) {
+	version = cmp.Or(version, "N/A")
+	date = cmp.Or(date, "N/A")
+	commit = cmp.Or(commit, "N/A")
+
+	fmt.Printf("Build version: %s\n", version)
+	fmt.Printf("Build date: %s\n", date)
+	fmt.Printf("Build commit: %s\n", commit)
 }

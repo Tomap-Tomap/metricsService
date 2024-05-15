@@ -38,10 +38,10 @@ func Initialize(level string, outputPath string) error {
 
 type loggingResponseWriter struct {
 	http.ResponseWriter
-	wroteHeader bool
+	error       string
 	code        int
 	bytes       int
-	error       string
+	wroteHeader bool
 }
 
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
@@ -73,7 +73,12 @@ func RequestLogger(h http.Handler) http.Handler {
 		start := time.Now()
 
 		var buf bytes.Buffer
-		buf.ReadFrom(r.Body)
+		_, err := buf.ReadFrom(r.Body)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		Log.Info("Got incoming HTTP request",
 			zap.String("uri", r.RequestURI),
