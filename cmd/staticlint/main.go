@@ -1,9 +1,10 @@
 package main
 
 import (
+	"cmp"
+	"fmt"
 	"strings"
 
-	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/osexitcheck"
 	"github.com/kisielk/errcheck/errcheck"
 	"github.com/securego/gosec/v2/analyzers"
@@ -67,7 +68,7 @@ var (
 )
 
 func main() {
-	logger.DisplayBuild(buildVersion, buildDate, buildCommit)
+	displayBuild(buildVersion, buildDate, buildCommit)
 	checks := []*analysis.Analyzer{
 		appends.Analyzer,
 		asmdecl.Analyzer,
@@ -131,4 +132,14 @@ func main() {
 	multichecker.Main(
 		checks...,
 	)
+}
+
+func displayBuild(version, date, commit string) {
+	version = cmp.Or(version, "N/A")
+	date = cmp.Or(date, "N/A")
+	commit = cmp.Or(commit, "N/A")
+
+	fmt.Printf("Build version: %s\n", version)
+	fmt.Printf("Build date: %s\n", date)
+	fmt.Printf("Build commit: %s\n", commit)
 }
