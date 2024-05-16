@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -72,7 +72,7 @@ func main() {
 		logger.Log.Fatal("Create decrypt manager", zap.Error(err))
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer cancel()
 	eg, egCtx := errgroup.WithContext(ctx)
 

@@ -64,7 +64,7 @@ func main() {
 
 	logger.Log.Info("Agent start")
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer cancel()
 
 	err = a.Run(ctx)
