@@ -17,21 +17,21 @@ import (
 )
 
 type gauges struct {
-	sync.RWMutex
 	Data map[string]Gauge `json:"data"`
+	sync.RWMutex
 }
 
 type counters struct {
-	sync.RWMutex
 	Data map[string]Counter `json:"data"`
+	sync.RWMutex
 }
 
 type MemStorage struct {
+	producer        *file.Producer
+	fileStoragePath string
 	Gauges          gauges   `json:"gauges"`
 	Counters        counters `json:"counters"`
-	fileStoragePath string
 	storeInterval   uint
-	producer        *file.Producer
 }
 
 func NewMemStorage(ctx context.Context, eg *errgroup.Group, producer *file.Producer, p parameters.ServerParameters) (*MemStorage, error) {

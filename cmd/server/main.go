@@ -3,7 +3,9 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,6 +22,12 @@ import (
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
 	_ "github.com/DarkOmap/metricsService/swagger"
+)
+
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
 )
 
 //	@Title			MetricsSevice API
@@ -42,6 +50,7 @@ import (
 //	@Tag.description	"Query group for metrics data retrieval"
 
 func main() {
+	displayBuild(buildVersion, buildDate, buildCommit)
 	p := parameters.ParseFlagsServer()
 
 	if err := logger.Initialize("INFO", "stderr"); err != nil {
@@ -122,4 +131,14 @@ func main() {
 	if err := eg.Wait(); err != nil {
 		logger.Log.Fatal("Problem with working server", zap.Error(err))
 	}
+}
+
+func displayBuild(version, date, commit string) {
+	version = cmp.Or(version, "N/A")
+	date = cmp.Or(date, "N/A")
+	commit = cmp.Or(commit, "N/A")
+
+	fmt.Printf("Build version: %s\n", version)
+	fmt.Printf("Build date: %s\n", date)
+	fmt.Printf("Build commit: %s\n", commit)
 }

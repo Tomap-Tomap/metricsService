@@ -61,7 +61,7 @@ func ParseFlagsAgent() (p AgentParameters) {
 	return
 }
 
-// AgentParameters contains parameters for server.
+// ServerParameters contains parameters for server.
 type ServerParameters struct {
 	FlagRunAddr     string
 	FileStoragePath string

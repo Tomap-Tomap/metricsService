@@ -79,8 +79,8 @@ func TestServiceHandlers_updateByJSON(t *testing.T) {
 	defer srv.Close()
 
 	type want struct {
-		code              int
 		contentType, body string
+		code              int
 	}
 	type param struct {
 		method, body string
@@ -175,8 +175,8 @@ func TestServiceHandlers_updateByURL(t *testing.T) {
 	defer srv.Close()
 
 	type want struct {
-		code        int
 		contentType string
+		code        int
 	}
 	type param struct {
 		method, url string
@@ -189,32 +189,32 @@ func TestServiceHandlers_updateByURL(t *testing.T) {
 		{
 			name:  "method get",
 			param: param{http.MethodGet, "/update/gauge/test/123"},
-			want:  want{http.StatusMethodNotAllowed, ""},
+			want:  want{"", http.StatusMethodNotAllowed},
 		},
 		{
 			name:  "short url",
 			param: param{http.MethodPost, "/update/gauge/test"},
-			want:  want{http.StatusNotFound, textCT},
+			want:  want{textCT, http.StatusNotFound},
 		},
 		{
 			name:  "wrong gauge value",
 			param: param{http.MethodPost, "/update/gauge/test/wrong"},
-			want:  want{http.StatusBadRequest, textCT},
+			want:  want{textCT, http.StatusBadRequest},
 		},
 		{
 			name:  "wrong counter value",
 			param: param{http.MethodPost, "/update/counter/test/wrong"},
-			want:  want{http.StatusBadRequest, textCT},
+			want:  want{textCT, http.StatusBadRequest},
 		},
 		{
 			name:  "positive gauge",
 			param: param{http.MethodPost, "/update/gauge/test/12"},
-			want:  want{http.StatusOK, textCT},
+			want:  want{textCT, http.StatusOK},
 		},
 		{
 			name:  "positive counter",
 			param: param{http.MethodPost, "/update/counter/test/12"},
-			want:  want{http.StatusOK, textCT},
+			want:  want{textCT, http.StatusOK},
 		},
 	}
 	for _, tt := range tests {
@@ -266,9 +266,9 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 	defer srv.Close()
 
 	type want struct {
-		code        int
 		contentType string
 		value       string
+		code        int
 	}
 	type param struct {
 		method, url string
@@ -301,12 +301,12 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 		{
 			name:  "positive gauge",
 			param: param{http.MethodGet, "/value/gauge/test"},
-			want:  want{http.StatusOK, textCT, "1.1"},
+			want:  want{textCT, "1.1", http.StatusOK},
 		},
 		{
 			name:  "positive counter",
 			param: param{http.MethodGet, "/value/counter/test"},
-			want:  want{http.StatusOK, textCT, "1"},
+			want:  want{textCT, "1", http.StatusOK},
 		},
 	}
 	for _, tt := range tests {
@@ -369,9 +369,9 @@ func TestServiceHandlers_all(t *testing.T) {
 	</html>`
 
 	type want struct {
-		code        int
 		contentType string
 		value       string
+		code        int
 	}
 	type param struct {
 		method, url string
@@ -389,7 +389,7 @@ func TestServiceHandlers_all(t *testing.T) {
 		{
 			name:  "positive",
 			param: param{http.MethodGet, "/"},
-			want:  want{http.StatusOK, "text/html; charset=utf-8", htmlText},
+			want:  want{"text/html; charset=utf-8", htmlText, http.StatusOK},
 		},
 	}
 	for _, tt := range tests {
@@ -440,8 +440,8 @@ func TestServiceHandlers_valueByJSON(t *testing.T) {
 	defer srv.Close()
 
 	type want struct {
-		code              int
 		contentType, body string
+		code              int
 	}
 	type param struct {
 		method, body string

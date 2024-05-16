@@ -16,13 +16,13 @@ import (
 
 // Hasher It's structure witch defines methods for hashing data.
 type Hasher struct {
-	key        []byte
 	hasherPool chan hash.Hash
+	key        []byte
 }
 
 func NewHasher(key []byte, rateLimit uint) Hasher {
 	hp := make(chan hash.Hash, rateLimit)
-	return Hasher{key, hp}
+	return Hasher{hp, key}
 }
 
 func (h *Hasher) Close() {
@@ -128,9 +128,9 @@ func (h *Hasher) putHash(ph hash.Hash) {
 
 type hashingResponseWriter struct {
 	http.ResponseWriter
-	bytes  int
-	key    []byte
 	hasher *Hasher
+	key    []byte
+	bytes  int
 }
 
 func (r *hashingResponseWriter) Write(b []byte) (int, error) {

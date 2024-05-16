@@ -9,12 +9,12 @@ import (
 
 func TestParseFlagsAgent(t *testing.T) {
 	tests := []struct {
-		name               string
 		f                  func()
+		name               string
 		wantListenAddr     string
+		wantKey            string
 		wantReportInterval uint
 		wantPollInterval   uint
-		wantKey            string
 		wantRL             uint
 	}{
 		{

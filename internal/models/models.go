@@ -12,10 +12,10 @@ import (
 // @Description Metric information
 // @Description type may be "gauge" or "counter"
 type Metrics struct {
-	ID    string   `json:"id"`
-	MType string   `json:"type"`
 	Delta *int64   `json:"delta,omitempty"`
 	Value *float64 `json:"value,omitempty"`
+	ID    string   `json:"id"`
+	MType string   `json:"type"`
 }
 
 // NewMetrics returns an empty model with the specified name and type.
