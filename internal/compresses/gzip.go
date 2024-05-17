@@ -38,45 +38,6 @@ func (c *compressReader) Close() error {
 	return c.Reader.Close()
 }
 
-// CompressHandle return handler for middleware.
-// Handle may compress and decompress data.
-func CompressHandle(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		contentEncoding := r.Header.Get("Content-Encoding")
-		sendsGzip := strings.Contains(contentEncoding, "gzip")
-
-		if sendsGzip {
-			zr, err := gzip.NewReader(r.Body)
-
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			r.Body = &compressReader{ReadCloser: r.Body, Reader: zr}
-			defer r.Body.Close()
-		}
-
-		acceptEncoding := r.Header.Get("Accept-Encoding")
-		supportsGzip := strings.Contains(acceptEncoding, "gzip")
-
-		switch {
-		case supportsGzip:
-			w.Header().Set("Content-Encoding", "gzip")
-			gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			defer gz.Close()
-			next.ServeHTTP(&compressWriter{ResponseWriter: w, Writer: gz}, r)
-		default:
-			next.ServeHTTP(w, r)
-		}
-
-	})
-}
-
 type GzipPool struct {
 	writerPool chan *gzip.Writer
 	readerPool chan *gzip.Reader
@@ -157,7 +118,6 @@ func (gp *GzipPool) CompressHandle(next http.Handler) http.Handler {
 
 		switch {
 		case supportsGzip:
-			w.Header().Set("Content-Encoding", "gzip")
 			gw, err := gp.getWriter()
 
 			if err != nil {
@@ -165,6 +125,7 @@ func (gp *GzipPool) CompressHandle(next http.Handler) http.Handler {
 				return
 			}
 
+			w.Header().Set("Content-Encoding", "gzip")
 			gw.Reset(w)
 			defer gp.putWriter(gw)
 			defer gw.Close()

@@ -134,6 +134,30 @@ func TestSendGauge(t *testing.T) {
 
 		assert.Error(t, err)
 	})
+
+	t.Run("hasher error", func(t *testing.T) {
+		t.Parallel()
+		cmo := new(CompresserMockedObject)
+		cmo.On("GetCompressedJSON").Return([]byte("test"), nil)
+
+		emo := new(EncrypterMockedObject)
+		emo.On("EncryptMessage").Return([]byte("test"), nil)
+
+		ts := httptest.NewServer(
+			http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+				},
+			),
+		)
+		defer ts.Close()
+
+		h := hasher.NewHasher([]byte("test"), 0)
+		h.Close()
+		c := NewClient(cmo, emo, h, strings.TrimPrefix(ts.URL, "http://"))
+		err := c.SendGauge(context.Background(), "test", 1.1)
+
+		require.Error(t, err)
+	})
 }
 
 func TestSendCounter(t *testing.T) {
@@ -228,6 +252,30 @@ func TestSendCounter(t *testing.T) {
 
 		assert.Error(t, err)
 	})
+
+	t.Run("hasher error", func(t *testing.T) {
+		t.Parallel()
+		cmo := new(CompresserMockedObject)
+		cmo.On("GetCompressedJSON").Return([]byte("test"), nil)
+
+		emo := new(EncrypterMockedObject)
+		emo.On("EncryptMessage").Return([]byte("test"), nil)
+
+		ts := httptest.NewServer(
+			http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+				},
+			),
+		)
+		defer ts.Close()
+
+		h := hasher.NewHasher([]byte("test"), 0)
+		h.Close()
+		c := NewClient(cmo, emo, h, strings.TrimPrefix(ts.URL, "http://"))
+		err := c.SendCounter(context.Background(), "test", 1)
+
+		require.Error(t, err)
+	})
 }
 
 func TestClient_SendBatch(t *testing.T) {
@@ -296,6 +344,21 @@ func TestClient_SendBatch(t *testing.T) {
 		c := NewClient(cmo, emo, h, "test")
 		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
 
+		assert.Error(t, err)
+	})
+
+	t.Run("hasher error", func(t *testing.T) {
+		t.Parallel()
+		hf := func(w http.ResponseWriter, r *http.Request) {
+		}
+
+		ts := httptest.NewServer(http.HandlerFunc(hf))
+		defer ts.Close()
+
+		h := hasher.NewHasher([]byte("test"), 0)
+		h.Close()
+		c := NewClient(cmo, emo, h, strings.TrimPrefix(ts.URL, "http://"))
+		err := c.SendBatch(context.Background(), map[string]float64{"test": 44})
 		assert.Error(t, err)
 	})
 }

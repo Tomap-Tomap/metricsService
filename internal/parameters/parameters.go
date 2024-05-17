@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -44,7 +45,9 @@ func ParseFlagsAgent() (p AgentParameters) {
 
 	f.Parse(os.Args[1:])
 
-	parseAgentFromFile(f, &p, config)
+	if err := parseAgentFromFile(f, &p, config); err != nil {
+		logger.Log.Warn("Config file will not read", zap.Error(err))
+	}
 
 	if envCKP := os.Getenv("CRYPTO_KEY"); envCKP != "" {
 		p.CryptoKeyPath = envCKP
@@ -85,9 +88,9 @@ func ParseFlagsAgent() (p AgentParameters) {
 	return
 }
 
-func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) {
+func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) error {
 	if config == "" {
-		return
+		return nil
 	}
 
 	var jsonP AgentParameters
@@ -95,16 +98,14 @@ func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) {
 	file, err := os.Open(config)
 
 	if err != nil {
-		logger.Log.Warn("Failed open config file. Config file will not read", zap.Error(err))
-		return
+		return fmt.Errorf("failed open config file: %w", err)
 	}
 
 	jd := json.NewDecoder(file)
 	err = jd.Decode(&jsonP)
 
 	if err != nil {
-		logger.Log.Warn("Failed decode config file. Config file will not read", zap.Error(err))
-		return
+		return fmt.Errorf("failed decode config file: %w", err)
 	}
 
 	if p.ListenAddr == f.Lookup("a").DefValue {
@@ -133,6 +134,8 @@ func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) {
 	if p.RateLimit == uint(rl) {
 		p.RateLimit = cmp.Or(jsonP.RateLimit, p.RateLimit)
 	}
+
+	return nil
 }
 
 // ServerParameters contains parameters for server.
@@ -176,7 +179,9 @@ func ParseFlagsServer() (p ServerParameters) {
 
 	f.Parse(os.Args[1:])
 
-	parseServerFromFile(f, &p, config)
+	if err := parseServerFromFile(f, &p, config); err != nil {
+		logger.Log.Warn("Config file will not read", zap.Error(err))
+	}
 
 	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
 		p.FlagRunAddr = envAddr
@@ -221,9 +226,9 @@ func ParseFlagsServer() (p ServerParameters) {
 	return
 }
 
-func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) {
+func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) error {
 	if config == "" {
-		return
+		return nil
 	}
 
 	var jsonP ServerParameters
@@ -231,16 +236,14 @@ func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) {
 	file, err := os.Open(config)
 
 	if err != nil {
-		logger.Log.Warn("Failed open config file. Config file will not read", zap.Error(err))
-		return
+		return fmt.Errorf("failed open config file: %w", err)
 	}
 
 	jd := json.NewDecoder(file)
 	err = jd.Decode(&jsonP)
 
 	if err != nil {
-		logger.Log.Warn("Failed decode config file. Config file will not read", zap.Error(err))
-		return
+		return fmt.Errorf("config file will not read: %w", err)
 	}
 
 	if p.FlagRunAddr == f.Lookup("a").DefValue {
@@ -277,4 +280,6 @@ func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) {
 	if p.Restore == restore {
 		p.Restore = cmp.Or(jsonP.Restore, p.Restore)
 	}
+
+	return nil
 }

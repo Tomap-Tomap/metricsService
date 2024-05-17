@@ -64,6 +64,16 @@ func NewDecryptManager(pathToFile string) (*DecryptManager, error) {
 	return &DecryptManager{privateKey.(*rsa.PrivateKey)}, nil
 }
 
+func (dm *DecryptManager) DecryptMessage(m []byte) ([]byte, error) {
+	decryptData, err := rsa.DecryptPKCS1v15(rand.Reader, dm.privateKey, m)
+
+	if err != nil {
+		return nil, fmt.Errorf("decrypt message: %w", err)
+	}
+
+	return decryptData, nil
+}
+
 func (dm *DecryptManager) DecryptHandle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var buf bytes.Buffer
@@ -87,14 +97,4 @@ func (dm *DecryptManager) DecryptHandle(next http.Handler) http.Handler {
 		r.Body = io.NopCloser(&buf)
 		next.ServeHTTP(w, r)
 	})
-}
-
-func (dm *DecryptManager) DecryptMessage(m []byte) ([]byte, error) {
-	decryptData, err := rsa.DecryptPKCS1v15(rand.Reader, dm.privateKey, m)
-
-	if err != nil {
-		return nil, fmt.Errorf("decrypt message: %w", err)
-	}
-
-	return decryptData, nil
 }

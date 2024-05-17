@@ -1,4 +1,3 @@
-// Package hasher defines structures for working with hashed data.
 package hasher
 
 import (
@@ -70,6 +69,18 @@ func TestHasher_HashingRequest(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, hmac.Equal(hh, dst))
 	})
+
+	t.Run("closed pool", func(t *testing.T) {
+		key := []byte("test")
+		h := NewHasher(key, 0)
+		h.Close()
+
+		body := []byte("test")
+		req := resty.New().R().SetBody(body)
+
+		err := h.HashingRequest(req, body)
+		require.Error(t, err)
+	})
 }
 
 func TestHasher_RequestHash(t *testing.T) {
@@ -138,6 +149,29 @@ func TestHasher_RequestHash(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Equal(t, resp.StatusCode(), 400)
+	})
+
+	t.Run("closed pool", func(t *testing.T) {
+		body := []byte("test")
+		h := NewHasher([]byte("test"), 0)
+		webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(body)
+		})
+		handler := h.RequestHash(webhook)
+
+		srv := httptest.NewServer(handler)
+		defer srv.Close()
+
+		c := resty.New()
+
+		req := c.R().SetBody(body)
+		h.HashingRequest(req, body)
+		h.Close()
+
+		resp, err := req.Post(srv.URL)
+
+		require.NoError(t, err)
+		require.Equal(t, resp.StatusCode(), 500)
 	})
 }
 

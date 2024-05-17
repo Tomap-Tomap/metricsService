@@ -28,11 +28,6 @@ func NewProducer(fileName string) (*Producer, error) {
 	}, nil
 }
 
-func (p *Producer) Seek() error {
-	_, err := p.file.Seek(0, 0)
-	return err
-}
-
 func (p *Producer) ClearFile() error {
 	return p.file.Truncate(0)
 }

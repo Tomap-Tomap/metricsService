@@ -22,7 +22,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// go run -ldflags "-X main.buildVersion=1 -X 'main.buildDate=$(date +'%Y/%m/%d %H:%M:%S')' -X 'main.buildCommit=$(git rev-parse HEAD)'" cmd/agent/main.go
 var (
 	buildVersion string
 	buildDate    string
@@ -73,7 +72,7 @@ func main() {
 	}
 }
 
-func displayBuild(version, date, commit string) {
+func displayBuild(version, date, commit string) (string, string, string) {
 	version = cmp.Or(version, "N/A")
 	date = cmp.Or(date, "N/A")
 	commit = cmp.Or(commit, "N/A")
@@ -81,4 +80,6 @@ func displayBuild(version, date, commit string) {
 	fmt.Printf("Build version: %s\n", version)
 	fmt.Printf("Build date: %s\n", date)
 	fmt.Printf("Build commit: %s\n", commit)
+
+	return version, date, commit
 }

@@ -17,6 +17,8 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 	type fields struct {
 		ResponseWriter http.ResponseWriter
 		bytes          int
+		code           int
+		wroteHeader    bool
 	}
 	type args struct {
 		b []byte
@@ -24,6 +26,7 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 	type want struct {
 		wantRet  int
 		wantSize int
+		wantErr  string
 	}
 	tests := []struct {
 		name    string
@@ -36,18 +39,22 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 			name: "test zero",
 			fields: fields{
 				ResponseWriter: httptest.NewRecorder(),
+				code:           200,
+				wroteHeader:    false,
 			},
 			args:    args{[]byte{}},
-			want:    want{0, 0},
+			want:    want{0, 0, ""},
 			wantErr: false,
 		},
 		{
 			name: "test not zero",
 			fields: fields{
 				ResponseWriter: httptest.NewRecorder(),
+				code:           200,
+				wroteHeader:    false,
 			},
 			args:    args{[]byte{1, 2, 3}},
-			want:    want{3, 3},
+			want:    want{3, 3, ""},
 			wantErr: false,
 		},
 		{
@@ -55,9 +62,23 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 			fields: fields{
 				ResponseWriter: httptest.NewRecorder(),
 				bytes:          3,
+				code:           200,
+				wroteHeader:    false,
 			},
 			args:    args{[]byte{1, 2, 3}},
-			want:    want{3, 6},
+			want:    want{3, 6, ""},
+			wantErr: false,
+		},
+		{
+			name: "test not 200 code",
+			fields: fields{
+				ResponseWriter: httptest.NewRecorder(),
+				bytes:          3,
+				code:           400,
+				wroteHeader:    true,
+			},
+			args:    args{[]byte{1, 2, 3}},
+			want:    want{3, 6, string([]byte{1, 2, 3})},
 			wantErr: false,
 		},
 	}
@@ -66,6 +87,8 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 			r := &loggingResponseWriter{
 				ResponseWriter: tt.fields.ResponseWriter,
 				bytes:          tt.fields.bytes,
+				code:           tt.fields.code,
+				wroteHeader:    tt.fields.wroteHeader,
 			}
 			got, err := r.Write(tt.args.b)
 
@@ -76,6 +99,7 @@ func Test_loggingResponseWriter_Write(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want.wantRet, got)
 			assert.Equal(t, tt.want.wantSize, r.bytes)
+			assert.Equal(t, tt.want.wantErr, r.error)
 		})
 	}
 }
@@ -139,23 +163,32 @@ func TestInitialize(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
+		path    string
 		args    args
 		wantErr bool
 	}{
 		{
 			name:    "positive test",
+			path:    "stderr",
 			args:    args{"INFO"},
 			wantErr: false,
 		},
 		{
 			name:    "negative test",
+			path:    "stderr",
 			args:    args{"TEST"},
+			wantErr: true,
+		},
+		{
+			name:    "negative test",
+			path:    "errorPath#21231",
+			args:    args{"INFO"},
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := Initialize(tt.args.level, "stderr")
+			err := Initialize(tt.args.level, tt.path)
 
 			if tt.wantErr {
 				assert.Error(t, err)
