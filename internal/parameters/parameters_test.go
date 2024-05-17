@@ -159,7 +159,7 @@ func Test_parseAgentFromFile(t *testing.T) {
 
 		f.Parse(os.Args[1:])
 
-		err := parseAgentFromFile(f, &p, "./testdata/config_invalid_test.json")
+		err := parseAgentFromFile(f, &p, "./testdata/config_invalid_test")
 		require.Error(t, err)
 	})
 }
@@ -424,7 +424,7 @@ func Test_parseServerFromFile(t *testing.T) {
 
 		f.Parse(os.Args[1:])
 
-		err := parseServerFromFile(f, &p, "./testdata/config_invalid_test.json")
+		err := parseServerFromFile(f, &p, "./testdata/config_invalid_test")
 		require.Error(t, err)
 	})
 }
