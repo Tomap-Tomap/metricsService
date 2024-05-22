@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 
@@ -140,14 +141,37 @@ func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) erro
 
 // ServerParameters contains parameters for server.
 type ServerParameters struct {
-	FlagRunAddr     string `json:"address"`
-	FileStoragePath string `json:"file_storage_path"`
-	CryptoKeyPath   string `json:"crypto_key"`
-	DataBaseDSN     string `json:"database_dsn"`
-	Key             string `json:"key"`
-	StoreInterval   uint   `json:"store_interval"`
-	Restore         bool   `json:"restore"`
-	RateLimit       uint   `json:"rate_limit"`
+	FlagRunAddr     string     `json:"address"`
+	FileStoragePath string     `json:"file_storage_path"`
+	CryptoKeyPath   string     `json:"crypto_key"`
+	DataBaseDSN     string     `json:"database_dsn"`
+	Key             string     `json:"key"`
+	StoreInterval   uint       `json:"store_interval"`
+	Restore         bool       `json:"restore"`
+	RateLimit       uint       `json:"rate_limit"`
+	TrustedSubnet   *net.IPNet `json:"trusted_subnet"`
+}
+
+func (sp *ServerParameters) UnmarshalJSON(data []byte) (err error) {
+	type ServerParametersAlias ServerParameters
+
+	spAlias := struct {
+		*ServerParametersAlias
+		TrustedSubnet string `json:"trusted_subnet"`
+	}{
+		ServerParametersAlias: (*ServerParametersAlias)(sp),
+	}
+
+	err = json.Unmarshal(data, &spAlias)
+
+	if err != nil {
+		return
+	}
+
+	if spAlias.TrustedSubnet != "" {
+		_, sp.TrustedSubnet, err = net.ParseCIDR(spAlias.TrustedSubnet)
+	}
+	return
 }
 
 // ParseFlagsServer return server's parameters from console or env.
@@ -177,7 +201,20 @@ func ParseFlagsServer() (p ServerParameters) {
 		f.StringVar(&config, "config", "config.json", "path to server configuration")
 	}
 
+	var trustedSubnet string
+	f.StringVar(&trustedSubnet, "t", "", "trusted subnet")
+
 	f.Parse(os.Args[1:])
+
+	if trustedSubnet != "" {
+		_, ts, err := net.ParseCIDR(trustedSubnet)
+
+		if err != nil {
+			logger.Log.Warn("Parse CIDR on flags", zap.Error(err))
+		}
+
+		p.TrustedSubnet = ts
+	}
 
 	if err := parseServerFromFile(f, &p, config); err != nil {
 		logger.Log.Warn("Config file will not read", zap.Error(err))
@@ -221,6 +258,16 @@ func ParseFlagsServer() (p ServerParameters) {
 		if err == nil {
 			p.RateLimit = uint(intRL)
 		}
+	}
+
+	if envTS := os.Getenv("TRUSTED_SUBNET"); envTS != "" {
+		_, ts, err := net.ParseCIDR(envTS)
+
+		if err != nil {
+			logger.Log.Warn("Parse CIDR on env", zap.Error(err))
+		}
+
+		p.TrustedSubnet = ts
 	}
 
 	return
@@ -279,6 +326,10 @@ func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) er
 	restore, _ := strconv.ParseBool(f.Lookup("r").DefValue)
 	if p.Restore == restore {
 		p.Restore = cmp.Or(jsonP.Restore, p.Restore)
+	}
+
+	if p.TrustedSubnet == nil {
+		p.TrustedSubnet = jsonP.TrustedSubnet
 	}
 
 	return nil

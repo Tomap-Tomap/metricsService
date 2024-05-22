@@ -6,5 +6,6 @@
     "database_dsn": "configDSN",
     "store_interval": 111,
     "restore": true,
-    "rate_limit": 222
+    "rate_limit": 222,
+    "trusted_subnet": "192.168.1.0/24"
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DarkOmap/metricsService/internal/hasher"
+	"github.com/DarkOmap/metricsService/internal/ip"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/go-resty/resty/v2"
 )
@@ -70,6 +71,7 @@ func (c *Client) SendGauge(ctx context.Context, name string, value float64) erro
 	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
+		SetHeader("X-Real-IP", ip.GetLocalIP()).
 		SetContext(ctx)
 	err = c.hasher.HashingRequest(req, b)
 
@@ -109,6 +111,7 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
+		SetHeader("X-Real-IP", ip.GetLocalIP()).
 		SetContext(ctx)
 	err = c.hasher.HashingRequest(req, b)
 
@@ -148,6 +151,7 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
+		SetHeader("X-Real-IP", ip.GetLocalIP()).
 		SetContext(ctx)
 	err = c.hasher.HashingRequest(req, b)
 

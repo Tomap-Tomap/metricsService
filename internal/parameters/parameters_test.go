@@ -2,6 +2,7 @@ package parameters
 
 import (
 	"flag"
+	"net"
 	"os"
 	"testing"
 
@@ -255,6 +256,8 @@ func TestParseFlagsServer(t *testing.T) {
 }
 
 func setEnvForServer() ServerParameters {
+	_, ts, _ := net.ParseCIDR("192.168.1.0/24")
+
 	sp := ServerParameters{
 		FlagRunAddr:     "testEnv",
 		FileStoragePath: "/tmp/test.json",
@@ -264,6 +267,7 @@ func setEnvForServer() ServerParameters {
 		Restore:         true,
 		Key:             "key",
 		RateLimit:       5,
+		TrustedSubnet:   ts,
 	}
 	os.Setenv("ADDRESS", sp.FlagRunAddr)
 	os.Setenv("FILE_STORAGE_PATH", sp.FileStoragePath)
@@ -273,6 +277,7 @@ func setEnvForServer() ServerParameters {
 	os.Setenv("RESTORE", "true")
 	os.Setenv("KEY", sp.Key)
 	os.Setenv("RATE_LIMIT", "5")
+	os.Setenv("TRUSTED_SUBNET", "192.168.1.0/24")
 
 	return sp
 }
@@ -288,8 +293,10 @@ func setFlagsForServer() ServerParameters {
 		"-r=false",
 		"-k=key",
 		"-l=5",
+		"-t=192.168.1.0/24",
 	}
 
+	_, ts, _ := net.ParseCIDR("192.168.1.0/24")
 	return ServerParameters{
 		FlagRunAddr:     "testFlags",
 		FileStoragePath: "/tmp/test/test.json",
@@ -299,6 +306,7 @@ func setFlagsForServer() ServerParameters {
 		Restore:         false,
 		Key:             "key",
 		RateLimit:       5,
+		TrustedSubnet:   ts,
 	}
 }
 
@@ -312,6 +320,7 @@ func getDefaultParametersForServer() ServerParameters {
 		Restore:         true,
 		Key:             "",
 		RateLimit:       10,
+		TrustedSubnet:   nil,
 	}
 }
 
@@ -363,7 +372,12 @@ func Test_parseServerFromFile(t *testing.T) {
 		f.BoolVar(&p.Restore, "r", true, "flag for upload storage from file")
 		f.UintVar(&p.RateLimit, "l", 10, "rate limit")
 
+		var trustedSubnet string
+		f.StringVar(&trustedSubnet, "t", "192.168.1.0/24", "trusted subnet")
+
 		f.Parse(os.Args[1:])
+
+		_, p.TrustedSubnet, _ = net.ParseCIDR(trustedSubnet)
 
 		err := parseServerFromFile(f, &p, "./testdata/server_config_empty_test.json")
 		require.NoError(t, err)
@@ -371,6 +385,10 @@ func Test_parseServerFromFile(t *testing.T) {
 	})
 
 	t.Run("test config file", func(t *testing.T) {
+		_, wantCIDR, err := net.ParseCIDR("192.168.1.0/24")
+
+		require.NoError(t, err)
+
 		wantP := ServerParameters{
 			FlagRunAddr:     "configAddr",
 			FileStoragePath: "configFile",
@@ -380,6 +398,7 @@ func Test_parseServerFromFile(t *testing.T) {
 			StoreInterval:   111,
 			Restore:         true,
 			RateLimit:       222,
+			TrustedSubnet:   wantCIDR,
 		}
 
 		var p ServerParameters
@@ -400,7 +419,7 @@ func Test_parseServerFromFile(t *testing.T) {
 
 		f.Parse(os.Args[1:])
 
-		err := parseServerFromFile(f, &p, "./testdata/server_config_test.json")
+		err = parseServerFromFile(f, &p, "./testdata/server_config_test.json")
 		require.NoError(t, err)
 		require.Equal(t, wantP, p)
 	})

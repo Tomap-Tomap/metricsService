@@ -19,6 +19,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/hasher"
+	"github.com/DarkOmap/metricsService/internal/ip"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/DarkOmap/metricsService/internal/storage"
@@ -112,8 +113,11 @@ func main() {
 	h := hasher.NewHasher([]byte(p.Key), p.RateLimit)
 	defer h.Close()
 
+	logger.Log.Info("Create IP checker")
+	ipc := ip.NewIPChecker(p.TrustedSubnet)
+
 	logger.Log.Info("Create routers")
-	r := handlers.ServiceRouter(pool, h, sh, dm)
+	r := handlers.ServiceRouter(pool, h, sh, dm, ipc)
 
 	logger.Log.Info("Create server")
 	httpServer := &http.Server{
