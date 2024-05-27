@@ -7,14 +7,15 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/DarkOmap/metricsService/handlers"
+	"github.com/DarkOmap/metricsService/internal/certmanager"
 	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/hasher"
@@ -64,7 +65,14 @@ func main() {
 	}
 	defer producer.Close()
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	logger.Log.Info("Create decrypt manager")
+	dm, err := certmanager.NewDecryptManager(p.CryptoKeyPath)
+
+	if err != nil {
+		logger.Log.Fatal("Create decrypt manager", zap.Error(err))
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer cancel()
 	eg, egCtx := errgroup.WithContext(ctx)
 
@@ -101,11 +109,11 @@ func main() {
 	defer pool.Close()
 
 	logger.Log.Info("Create hasher pool")
-	h := hasher.NewHasher([]byte(p.Key), p.RateLimit)
+	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
 	defer h.Close()
 
 	logger.Log.Info("Create routers")
-	r := handlers.ServiceRouter(pool, h, sh)
+	r := handlers.ServiceRouter(pool, h, sh, dm)
 
 	logger.Log.Info("Create server")
 	httpServer := &http.Server{
@@ -133,7 +141,7 @@ func main() {
 	}
 }
 
-func displayBuild(version, date, commit string) {
+func displayBuild(version, date, commit string) (string, string, string) {
 	version = cmp.Or(version, "N/A")
 	date = cmp.Or(date, "N/A")
 	commit = cmp.Or(commit, "N/A")
@@ -141,4 +149,6 @@ func displayBuild(version, date, commit string) {
 	fmt.Printf("Build version: %s\n", version)
 	fmt.Printf("Build date: %s\n", date)
 	fmt.Printf("Build commit: %s\n", commit)
+
+	return version, date, commit
 }

@@ -69,3 +69,19 @@ func BenchmarkGetMap(b *testing.B) {
 		ms.GetMap()
 	}
 }
+
+func TestMemStatsForServer_ReadMemStats(t *testing.T) {
+	t.Run("error read VM", func(t *testing.T) {
+		t.Setenv("HOST_PROC", "./testdata/error_meminfo")
+		_, err := NewMemStatsForServer()
+
+		require.Error(t, err)
+	})
+
+	t.Run("error read cpu", func(t *testing.T) {
+		t.Setenv("HOST_PROC", "./testdata/")
+		_, err := NewMemStatsForServer()
+
+		require.Error(t, err)
+	})
+}

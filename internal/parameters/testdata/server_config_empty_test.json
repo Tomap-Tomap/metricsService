@@ -1,0 +1,10 @@
+{
+    "address": "",
+    "hash_key": "",
+    "file_storage_path": "",
+    "crypto_key": "",
+    "database_dsn": "",
+    "store_interval": 0,
+    "restore": false,
+    "rate_limit": 0
+}

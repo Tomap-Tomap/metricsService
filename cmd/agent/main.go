@@ -12,6 +12,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/DarkOmap/metricsService/internal/agent"
+	"github.com/DarkOmap/metricsService/internal/certmanager"
 	"github.com/DarkOmap/metricsService/internal/client"
 	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/hasher"
@@ -21,7 +22,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// go run -ldflags "-X main.buildVersion=1 -X 'main.buildDate=$(date +'%Y/%m/%d %H:%M:%S')' -X 'main.buildCommit=$(git rev-parse HEAD)'" cmd/agent/main.go
 var (
 	buildVersion string
 	buildDate    string
@@ -36,14 +36,21 @@ func main() {
 		panic(err)
 	}
 
+	logger.Log.Info("Create encrypt manager")
+	em, err := certmanager.NewEncryptManager(p.CryptoKeyPath)
+
+	if err != nil {
+		logger.Log.Fatal("Create encrypt manager", zap.Error(err))
+	}
+
 	logger.Log.Info("Create gzip pool")
 	pool := compresses.NewGzipPool(p.RateLimit)
 	defer pool.Close()
 	logger.Log.Info("Create hasher pool")
-	h := hasher.NewHasher([]byte(p.Key), p.RateLimit)
+	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
 	defer h.Close()
 	logger.Log.Info("Create client")
-	c := client.NewClient(pool, h, p.ListenAddr)
+	c := client.NewClient(pool, em, h, p.ListenAddr)
 	logger.Log.Info("Init mem stats")
 	ms, err := memstats.NewMemStatsForServer()
 
@@ -56,7 +63,7 @@ func main() {
 
 	logger.Log.Info("Agent start")
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer cancel()
 
 	err = a.Run(ctx)
@@ -65,7 +72,7 @@ func main() {
 	}
 }
 
-func displayBuild(version, date, commit string) {
+func displayBuild(version, date, commit string) (string, string, string) {
 	version = cmp.Or(version, "N/A")
 	date = cmp.Or(date, "N/A")
 	commit = cmp.Or(commit, "N/A")
@@ -73,4 +80,6 @@ func displayBuild(version, date, commit string) {
 	fmt.Printf("Build version: %s\n", version)
 	fmt.Printf("Build date: %s\n", date)
 	fmt.Printf("Build commit: %s\n", commit)
+
+	return version, date, commit
 }

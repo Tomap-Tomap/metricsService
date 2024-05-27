@@ -1,0 +1,8 @@
+{
+    "address": "",
+    "crypto_key": "",
+    "hash_key": "",
+    "report_interval": 0,
+    "poll_interval": 0,
+    "rate_limit": 0
+}
