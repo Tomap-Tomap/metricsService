@@ -30,7 +30,7 @@ type Repository interface {
 }
 
 type Decrypter interface {
-	DecryptHandle(next http.Handler) http.Handler
+	RequestDecrypt(next http.Handler) http.Handler
 }
 
 type IPChecker interface {
@@ -387,9 +387,9 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 // ServiceRouter return router for run server.
 func ServiceRouter(gp *compresses.GzipPool, hasher hasher.Hasher, sh ServiceHandlers, dm Decrypter, ipChecker IPChecker) chi.Router {
 	r := chi.NewRouter()
-	r.Use(dm.DecryptHandle)
+	r.Use(dm.RequestDecrypt)
 	r.Use(hasher.RequestHash)
-	r.Use(gp.CompressHandle)
+	r.Use(gp.RequestCompress)
 	r.Use(ipChecker.RequsetIPCheck)
 	r.Use(logger.RequestLogger)
 	r.Route("/", func(r chi.Router) {

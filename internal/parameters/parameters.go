@@ -18,7 +18,7 @@ import (
 type AgentParameters struct {
 	ListenAddr     string `json:"address"`
 	CryptoKeyPath  string `json:"crypto_key"`
-	Key            string `json:"key"`
+	HashKey        string `json:"hash_key"`
 	ReportInterval uint   `json:"report_interval"`
 	RateLimit      uint   `json:"rate_limit"`
 	PollInterval   uint   `json:"poll_interval"`
@@ -34,7 +34,7 @@ func ParseFlagsAgent() (p AgentParameters) {
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
 	f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
-	f.StringVar(&p.Key, "k", "", "hash key")
+	f.StringVar(&p.HashKey, "k", "", "hash key")
 	f.UintVar(&p.ReportInterval, "r", 10, "report interval")
 	f.UintVar(&p.PollInterval, "p", 2, "poll interval")
 	f.UintVar(&p.RateLimit, "l", 10, "rate limit")
@@ -59,7 +59,7 @@ func ParseFlagsAgent() (p AgentParameters) {
 	}
 
 	if envKey := os.Getenv("KEY"); envKey != "" {
-		p.Key = envKey
+		p.HashKey = envKey
 	}
 
 	if envRI := os.Getenv("REPORT_INTERVAL"); envRI != "" {
@@ -117,8 +117,8 @@ func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) erro
 		p.CryptoKeyPath = cmp.Or(jsonP.CryptoKeyPath, p.CryptoKeyPath)
 	}
 
-	if p.Key == f.Lookup("k").DefValue {
-		p.Key = cmp.Or(jsonP.Key, p.Key)
+	if p.HashKey == f.Lookup("k").DefValue {
+		p.HashKey = cmp.Or(jsonP.HashKey, p.HashKey)
 	}
 
 	ri, _ := strconv.ParseUint(f.Lookup("r").DefValue, 10, 64)
@@ -145,7 +145,7 @@ type ServerParameters struct {
 	FileStoragePath string     `json:"file_storage_path"`
 	CryptoKeyPath   string     `json:"crypto_key"`
 	DataBaseDSN     string     `json:"database_dsn"`
-	Key             string     `json:"key"`
+	HashKey         string     `json:"hash_key"`
 	StoreInterval   uint       `json:"store_interval"`
 	Restore         bool       `json:"restore"`
 	RateLimit       uint       `json:"rate_limit"`
@@ -183,7 +183,7 @@ func ParseFlagsServer() (p ServerParameters) {
 
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
-	f.StringVar(&p.Key, "k", "", "hash key")
+	f.StringVar(&p.HashKey, "k", "", "hash key")
 	f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 	f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
 	f.StringVar(
@@ -225,7 +225,7 @@ func ParseFlagsServer() (p ServerParameters) {
 	}
 
 	if envKey := os.Getenv("KEY"); envKey != "" {
-		p.Key = envKey
+		p.HashKey = envKey
 	}
 
 	if envSP := os.Getenv("FILE_STORAGE_PATH"); envSP != "" {
@@ -309,8 +309,8 @@ func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) er
 		p.DataBaseDSN = cmp.Or(jsonP.DataBaseDSN, p.DataBaseDSN)
 	}
 
-	if p.Key == f.Lookup("k").DefValue {
-		p.Key = cmp.Or(jsonP.Key, p.Key)
+	if p.HashKey == f.Lookup("k").DefValue {
+		p.HashKey = cmp.Or(jsonP.HashKey, p.HashKey)
 	}
 
 	si, _ := strconv.ParseUint(f.Lookup("i").DefValue, 10, 64)

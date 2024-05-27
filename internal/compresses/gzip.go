@@ -86,9 +86,9 @@ func (gp *GzipPool) GetCompressedJSON(m any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// CompressHandle return handler for middleware.
+// RequestCompress return handler for middleware.
 // Handle may compress and decompress data.
-func (gp *GzipPool) CompressHandle(next http.Handler) http.Handler {
+func (gp *GzipPool) RequestCompress(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentEncoding := r.Header.Get("Content-Encoding")
 		sendsGzip := strings.Contains(contentEncoding, "gzip")

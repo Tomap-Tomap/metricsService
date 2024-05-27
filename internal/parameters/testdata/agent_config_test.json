@@ -1,7 +1,7 @@
 {
     "address": "configAddr",
     "crypto_key": "configCKey",
-    "key": "configKey",
+    "hash_key": "configKey",
     "report_interval": 111,
     "poll_interval": 222,
     "rate_limit": 333

@@ -1,11 +1,10 @@
 {
     "address": "",
-    "key": "",
+    "hash_key": "",
     "file_storage_path": "",
     "crypto_key": "",
     "database_dsn": "",
     "store_interval": 0,
     "restore": false,
-    "rate_limit": 0,
-    "trusted_subnet": ""
+    "rate_limit": 0
 }

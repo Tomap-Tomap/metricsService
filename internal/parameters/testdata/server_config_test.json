@@ -1,11 +1,10 @@
 {
     "address": "configAddr",
-    "key": "configKey",
+    "hash_key": "configKey",
     "file_storage_path": "configFile",
     "crypto_key": "configCKey",
     "database_dsn": "configDSN",
     "store_interval": 111,
     "restore": true,
-    "rate_limit": 222,
-    "trusted_subnet": "192.168.1.0/24"
+    "rate_limit": 222
 }

@@ -110,7 +110,7 @@ func main() {
 	defer pool.Close()
 
 	logger.Log.Info("Create hasher pool")
-	h := hasher.NewHasher([]byte(p.Key), p.RateLimit)
+	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
 	defer h.Close()
 
 	logger.Log.Info("Create IP checker")
