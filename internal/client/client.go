@@ -85,6 +85,10 @@ func (c *Client) SendGauge(ctx context.Context, name string, value float64) erro
 
 	resp, err := req.Post("http://" + c.addr + "/update")
 
+	if err != nil {
+		return fmt.Errorf("send gauge: %w", err)
+	}
+
 	if resp.StatusCode() != http.StatusOK {
 		return fmt.Errorf("status not 200, current status %d", resp.StatusCode())
 	}
