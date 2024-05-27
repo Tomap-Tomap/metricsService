@@ -73,7 +73,7 @@ func setEnvForAgent() AgentParameters {
 	return AgentParameters{
 		ListenAddr:     "testEnv",
 		CryptoKeyPath:  "testPath",
-		Key:            "key",
+		HashKey:        "key",
 		ReportInterval: 10,
 		RateLimit:      5,
 		PollInterval:   10,
@@ -89,7 +89,7 @@ func Test_parseAgentFromFile(t *testing.T) {
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
-		f.StringVar(&p.Key, "k", "", "hash key")
+		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.UintVar(&p.ReportInterval, "r", 10, "report interval")
 		f.UintVar(&p.PollInterval, "p", 2, "poll interval")
 		f.UintVar(&p.RateLimit, "l", 10, "rate limit")
@@ -109,7 +109,7 @@ func Test_parseAgentFromFile(t *testing.T) {
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
-		f.StringVar(&p.Key, "k", "", "hash key")
+		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.UintVar(&p.ReportInterval, "r", 10, "report interval")
 		f.UintVar(&p.PollInterval, "p", 2, "poll interval")
 		f.UintVar(&p.RateLimit, "l", 10, "rate limit")
@@ -125,7 +125,7 @@ func Test_parseAgentFromFile(t *testing.T) {
 		wantP := AgentParameters{
 			ListenAddr:     "configAddr",
 			CryptoKeyPath:  "configCKey",
-			Key:            "configKey",
+			HashKey:        "configKey",
 			ReportInterval: 111,
 			RateLimit:      333,
 			PollInterval:   222,
@@ -135,7 +135,7 @@ func Test_parseAgentFromFile(t *testing.T) {
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
-		f.StringVar(&p.Key, "k", "", "hash key")
+		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.UintVar(&p.ReportInterval, "r", 10, "report interval")
 		f.UintVar(&p.PollInterval, "p", 2, "poll interval")
 		f.UintVar(&p.RateLimit, "l", 10, "rate limit")
@@ -152,7 +152,7 @@ func Test_parseAgentFromFile(t *testing.T) {
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
-		f.StringVar(&p.Key, "k", "", "hash key")
+		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.UintVar(&p.ReportInterval, "r", 10, "report interval")
 		f.UintVar(&p.PollInterval, "p", 2, "poll interval")
 		f.UintVar(&p.RateLimit, "l", 10, "rate limit")
@@ -178,7 +178,7 @@ func setFlagsForAgent() AgentParameters {
 	return AgentParameters{
 		ListenAddr:     "testFlags",
 		CryptoKeyPath:  "testPath",
-		Key:            "key",
+		HashKey:        "key",
 		ReportInterval: 100,
 		RateLimit:      5,
 		PollInterval:   100,
@@ -189,7 +189,7 @@ func getDefaultParametersForAgent() AgentParameters {
 	return AgentParameters{
 		ListenAddr:     "localhost:8080",
 		CryptoKeyPath:  "",
-		Key:            "",
+		HashKey:        "",
 		ReportInterval: 10,
 		RateLimit:      10,
 		PollInterval:   2,
@@ -262,7 +262,7 @@ func setEnvForServer() ServerParameters {
 		DataBaseDSN:     "test",
 		StoreInterval:   10,
 		Restore:         true,
-		Key:             "key",
+		HashKey:         "key",
 		RateLimit:       5,
 	}
 	os.Setenv("ADDRESS", sp.FlagRunAddr)
@@ -271,7 +271,7 @@ func setEnvForServer() ServerParameters {
 	os.Setenv("DATABASE_DSN", sp.DataBaseDSN)
 	os.Setenv("STORE_INTERVAL", "10")
 	os.Setenv("RESTORE", "true")
-	os.Setenv("KEY", sp.Key)
+	os.Setenv("KEY", sp.HashKey)
 	os.Setenv("RATE_LIMIT", "5")
 
 	return sp
@@ -297,7 +297,7 @@ func setFlagsForServer() ServerParameters {
 		DataBaseDSN:     "testdb",
 		StoreInterval:   10,
 		Restore:         false,
-		Key:             "key",
+		HashKey:         "key",
 		RateLimit:       5,
 	}
 }
@@ -310,7 +310,7 @@ func getDefaultParametersForServer() ServerParameters {
 		DataBaseDSN:     "",
 		StoreInterval:   300,
 		Restore:         true,
-		Key:             "",
+		HashKey:         "",
 		RateLimit:       10,
 	}
 }
@@ -323,7 +323,7 @@ func Test_parseServerFromFile(t *testing.T) {
 		var p ServerParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
-		f.StringVar(&p.Key, "k", "", "hash key")
+		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
 		f.StringVar(
@@ -350,7 +350,7 @@ func Test_parseServerFromFile(t *testing.T) {
 		var p ServerParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
-		f.StringVar(&p.Key, "k", "", "hash key")
+		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
 		f.StringVar(
@@ -376,7 +376,7 @@ func Test_parseServerFromFile(t *testing.T) {
 			FileStoragePath: "configFile",
 			CryptoKeyPath:   "configCKey",
 			DataBaseDSN:     "configDSN",
-			Key:             "configKey",
+			HashKey:         "configKey",
 			StoreInterval:   111,
 			Restore:         true,
 			RateLimit:       222,
@@ -385,7 +385,7 @@ func Test_parseServerFromFile(t *testing.T) {
 		var p ServerParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
-		f.StringVar(&p.Key, "k", "", "hash key")
+		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
 		f.StringVar(
@@ -409,7 +409,7 @@ func Test_parseServerFromFile(t *testing.T) {
 		var p ServerParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
-		f.StringVar(&p.Key, "k", "", "hash key")
+		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
 		f.StringVar(

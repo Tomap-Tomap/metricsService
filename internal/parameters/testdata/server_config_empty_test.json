@@ -1,6 +1,6 @@
 {
     "address": "",
-    "key": "",
+    "hash_key": "",
     "file_storage_path": "",
     "crypto_key": "",
     "database_dsn": "",

@@ -47,7 +47,7 @@ func main() {
 	pool := compresses.NewGzipPool(p.RateLimit)
 	defer pool.Close()
 	logger.Log.Info("Create hasher pool")
-	h := hasher.NewHasher([]byte(p.Key), p.RateLimit)
+	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
 	defer h.Close()
 	logger.Log.Info("Create client")
 	c := client.NewClient(pool, em, h, p.ListenAddr)

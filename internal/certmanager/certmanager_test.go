@@ -103,7 +103,7 @@ func TestDecryptManager_DecryptHandle(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		handler := dm.DecryptHandle(webhook)
+		handler := dm.RequestDecrypt(webhook)
 
 		srv := httptest.NewServer(handler)
 		defer srv.Close()
@@ -127,7 +127,7 @@ func TestDecryptManager_DecryptHandle(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		handler := dm.DecryptHandle(webhook)
+		handler := dm.RequestDecrypt(webhook)
 
 		srv := httptest.NewServer(handler)
 		defer srv.Close()
@@ -139,5 +139,27 @@ func TestDecryptManager_DecryptHandle(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Equal(t, resp.StatusCode(), 500)
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		dm, err := NewDecryptManager("./testdata/test_private")
+		require.NoError(t, err)
+
+		webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		handler := dm.RequestDecrypt(webhook)
+
+		srv := httptest.NewServer(handler)
+		defer srv.Close()
+
+		c := resty.New()
+
+		req := c.R()
+		resp, err := req.Post(srv.URL)
+
+		require.NoError(t, err)
+		require.Equal(t, resp.StatusCode(), 200)
 	})
 }

@@ -74,25 +74,29 @@ func (dm *DecryptManager) DecryptMessage(m []byte) ([]byte, error) {
 	return decryptData, nil
 }
 
-func (dm *DecryptManager) DecryptHandle(next http.Handler) http.Handler {
+func (dm *DecryptManager) RequestDecrypt(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body == http.NoBody {
+			next.ServeHTTP(w, r)
+			return
+		}
 		var buf bytes.Buffer
 		_, err := buf.ReadFrom(r.Body)
 
-		if err == nil {
-			decrypt, err := dm.DecryptMessage(buf.Bytes())
-
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-
-			buf.Reset()
-			_, err = buf.Write(decrypt)
-
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+
+		decrypt, err := dm.DecryptMessage(buf.Bytes())
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		buf.Reset()
+		buf.Write(decrypt)
 
 		r.Body = io.NopCloser(&buf)
 		next.ServeHTTP(w, r)

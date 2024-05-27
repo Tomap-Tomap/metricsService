@@ -80,7 +80,7 @@ func BenchmarkCompressHandle(b *testing.B) {
 	})
 	pool := NewGzipPool(10)
 	defer pool.Close()
-	handler := pool.CompressHandle(webhook)
+	handler := pool.RequestCompress(webhook)
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
@@ -131,7 +131,7 @@ func TestGzipPool_CompressHandle(t *testing.T) {
 
 	pool := NewGzipPool(1)
 	defer pool.Close()
-	handler := pool.CompressHandle(webhook)
+	handler := pool.RequestCompress(webhook)
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
@@ -171,7 +171,7 @@ func TestGzipPool_CompressHandle(t *testing.T) {
 	t.Run("check accepts_gzip closed pool", func(t *testing.T) {
 		pool := NewGzipPool(1)
 		pool.Close()
-		handler := pool.CompressHandle(webhook)
+		handler := pool.RequestCompress(webhook)
 
 		srv := httptest.NewServer(handler)
 		defer srv.Close()
@@ -189,7 +189,7 @@ func TestGzipPool_CompressHandle(t *testing.T) {
 	t.Run("check sends_gzip closed pool", func(t *testing.T) {
 		pool := NewGzipPool(1)
 		pool.Close()
-		handler := pool.CompressHandle(webhook)
+		handler := pool.RequestCompress(webhook)
 
 		srv := httptest.NewServer(handler)
 		defer srv.Close()

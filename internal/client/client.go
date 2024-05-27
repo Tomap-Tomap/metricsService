@@ -26,9 +26,7 @@ type Encrypter interface {
 type Client struct {
 	restyClient *resty.Client
 	gp          Compresser
-	encrypter   Encrypter
 	addr        string
-	hasher      hasher.Hasher
 }
 
 func NewClient(compresser Compresser, encrypter Encrypter, h hasher.Hasher, addr string) *Client {
@@ -38,14 +36,29 @@ func NewClient(compresser Compresser, encrypter Encrypter, h hasher.Hasher, addr
 		}).
 		SetRetryCount(3).
 		SetRetryWaitTime(1 * time.Second).
-		SetRetryMaxWaitTime(9 * time.Second)
+		SetRetryMaxWaitTime(9 * time.Second).
+		OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
+			b, err := encrypter.EncryptMessage(r.Body.([]byte))
+
+			if err != nil {
+				return fmt.Errorf("encrypt message: %w", err)
+			}
+
+			r.Body = b
+
+			err = h.HashingRequest(r, b)
+
+			if err != nil {
+				return fmt.Errorf("hashing request: %w", err)
+			}
+
+			return nil
+		})
 
 	c := &Client{
 		client,
 		compresser,
-		encrypter,
 		addr,
-		h,
 	}
 
 	return c
@@ -61,21 +74,10 @@ func (c *Client) SendGauge(ctx context.Context, name string, value float64) erro
 		return fmt.Errorf("failed compress model name %s value %f: %w", name, value, err)
 	}
 
-	b, err = c.encrypter.EncryptMessage(b)
-
-	if err != nil {
-		return fmt.Errorf("failed encrypt message: %w", err)
-	}
-
 	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	err = c.hasher.HashingRequest(req, b)
-
-	if err != nil {
-		return fmt.Errorf("hashing request: %w", err)
-	}
 
 	resp, err := req.Post("http://" + c.addr + "/update")
 
@@ -100,17 +102,10 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 		return fmt.Errorf("failed compress model name %s delta %d: %w", name, delta, err)
 	}
 
-	b, err = c.encrypter.EncryptMessage(b)
-
-	if err != nil {
-		return fmt.Errorf("failed encrypt message: %w", err)
-	}
-
 	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	err = c.hasher.HashingRequest(req, b)
 
 	if err != nil {
 		return fmt.Errorf("hashing request: %w", err)
@@ -139,17 +134,10 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 		return fmt.Errorf("failed compress batch: %w", err)
 	}
 
-	b, err = c.encrypter.EncryptMessage(b)
-
-	if err != nil {
-		return fmt.Errorf("failed encrypt message: %w", err)
-	}
-
 	req := c.restyClient.R().SetBody(b).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-	err = c.hasher.HashingRequest(req, b)
 
 	if err != nil {
 		return fmt.Errorf("hashing request: %w", err)

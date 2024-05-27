@@ -1,6 +1,6 @@
 {
     "address": "configAddr",
-    "key": "configKey",
+    "hash_key": "configKey",
     "file_storage_path": "configFile",
     "crypto_key": "configCKey",
     "database_dsn": "configDSN",
