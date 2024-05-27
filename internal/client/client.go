@@ -107,10 +107,6 @@ func (c *Client) SendCounter(ctx context.Context, name string, delta int64) erro
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
 
-	if err != nil {
-		return fmt.Errorf("hashing request: %w", err)
-	}
-
 	resp, err := req.Post("http://" + c.addr + "/update")
 
 	if err != nil {
@@ -138,10 +134,6 @@ func (c *Client) SendBatch(ctx context.Context, batch map[string]float64) error 
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip").
 		SetContext(ctx)
-
-	if err != nil {
-		return fmt.Errorf("hashing request: %w", err)
-	}
 
 	resp, err := req.Post("http://" + c.addr + "/updates")
 
