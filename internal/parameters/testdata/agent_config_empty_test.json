@@ -1,5 +1,6 @@
 {
     "address": "",
+    "use_grpc": false,
     "crypto_key": "",
     "hash_key": "",
     "report_interval": 0,

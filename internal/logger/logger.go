@@ -3,12 +3,15 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 // Log it's singleton variable for working with logs.
@@ -107,4 +110,32 @@ func RequestLogger(h http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(logFn)
+}
+
+func InterceptorLogger(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+	start := time.Now()
+
+	if v, ok := req.(proto.Message); ok {
+		Log.Info("Got incoming grpc request",
+			zap.String("full method", info.FullMethod),
+			zap.Any("body", v),
+		)
+	} else {
+		Log.Warn("Payload is not a google.golang.org/protobuf/proto.Message; programmatic error?",
+			zap.String("full method", info.FullMethod))
+	}
+
+	resp, err = handler(ctx, req)
+
+	if err != nil {
+		Log.Warn("Failed request", zap.Error(err))
+	} else {
+		duration := time.Since(start)
+
+		Log.Info("Sending grpc response",
+			zap.String("duration", duration.String()),
+		)
+	}
+
+	return
 }

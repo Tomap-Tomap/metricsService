@@ -1,12 +1,17 @@
 package ip
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"sync"
 
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -33,6 +38,15 @@ func GetLocalIP() string {
 	})
 
 	return localIP
+}
+
+func InterceptorAddRealIP(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	ctx = metadata.AppendToOutgoingContext(
+		ctx,
+		"X-Real-IP", GetLocalIP(),
+	)
+
+	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
 type IPChecker struct {
@@ -66,4 +80,29 @@ func (ipc *IPChecker) RequsetIPCheck(next http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(fn)
+}
+
+func (ipc *IPChecker) InterceptorIPCheck(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+
+	if !ok {
+		err = status.Error(codes.PermissionDenied, "missing metadata")
+		return
+	}
+
+	ip := md.Get("X-Real-IP")
+
+	if len(ip) == 0 {
+		err = status.Error(codes.PermissionDenied, "missing X-Real-IP")
+		return
+	}
+
+	if !ipc.ipNet.Contains(net.ParseIP(ip[0])) {
+		err = status.Error(codes.PermissionDenied, "network doesn't include given IP")
+		return
+	}
+
+	resp, err = handler(ctx, req)
+
+	return
 }

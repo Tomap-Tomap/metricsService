@@ -6,24 +6,19 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"net/http"
 	"os/signal"
 	"syscall"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 
-	"github.com/DarkOmap/metricsService/handlers"
-	"github.com/DarkOmap/metricsService/internal/certmanager"
 	"github.com/DarkOmap/metricsService/internal/compresses"
-	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/ip"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
-	"github.com/DarkOmap/metricsService/internal/storage"
+	"github.com/DarkOmap/metricsService/internal/server"
 	_ "github.com/DarkOmap/metricsService/swagger"
+	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 var (
@@ -59,88 +54,46 @@ func main() {
 		panic(err)
 	}
 
-	logger.Log.Info("Create file producer")
-	producer, err := file.NewProducer(p.FileStoragePath)
-	if err != nil {
-		logger.Log.Fatal("Create file producer", zap.Error(err))
-	}
-	defer producer.Close()
-
-	logger.Log.Info("Create decrypt manager")
-	dm, err := certmanager.NewDecryptManager(p.CryptoKeyPath)
-
-	if err != nil {
-		logger.Log.Fatal("Create decrypt manager", zap.Error(err))
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer cancel()
-	eg, egCtx := errgroup.WithContext(ctx)
 
-	var ms handlers.Repository
+	logger.Log.Info("Create repository")
+	r, err := server.NewRepository(ctx, p)
 
-	if p.DataBaseDSN != "" {
-		logger.Log.Info("Create database storage")
-
-		conn, err := pgxpool.New(ctx, p.DataBaseDSN)
-
-		if err != nil {
-			logger.Log.Fatal("Connect to database", zap.Error(err))
-		}
-		defer conn.Close()
-
-		ms, err = storage.NewDBStorage(conn)
-
-		if err != nil {
-			logger.Log.Fatal("Create database storage", zap.Error(err))
-		}
-	} else {
-		logger.Log.Info("Create mem storage")
-		ms, err = storage.NewMemStorage(egCtx, eg, producer, p)
-		if err != nil {
-			logger.Log.Fatal("Create mem storage", zap.Error(err))
-		}
+	if err != nil {
+		logger.Log.Fatal("Create repository", zap.Error(err))
 	}
+	defer r.Close()
 
-	logger.Log.Info("Create handlers")
-	sh := handlers.NewServiceHandlers(ms)
-
-	logger.Log.Info("Create gzip pool")
-	pool := compresses.NewGzipPool(p.RateLimit)
-	defer pool.Close()
+	logger.Log.Info("Create IP checker")
+	ipc := ip.NewIPChecker(p.TrustedSubnet)
 
 	logger.Log.Info("Create hasher pool")
 	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
 	defer h.Close()
 
-	logger.Log.Info("Create IP checker")
-	ipc := ip.NewIPChecker(p.TrustedSubnet)
+	logger.Log.Info("Create gzip pool")
+	gzipPool := compresses.NewGzipPool(p.RateLimit)
+	defer gzipPool.Close()
 
-	logger.Log.Info("Create routers")
-	r := handlers.ServiceRouter(pool, h, sh, dm, ipc)
+	opts := make([]server.ServerOptionFunc, 0, 2)
 
-	logger.Log.Info("Create server")
-	httpServer := &http.Server{
-		Addr:    p.FlagRunAddr,
-		Handler: r,
+	if p.FlagRunAddr != "" {
+		opts = append(opts, server.WithHTTP(r, ipc, h, gzipPool, p))
 	}
 
-	eg.Go(func() error {
-		logger.Log.Info("Run serve")
-		err := httpServer.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			return err
-		}
-		return nil
-	})
+	if p.FlagRunGRPCAddr != "" {
+		opts = append(opts, server.WithGRPC(r, ipc, h, p))
+	}
 
-	eg.Go(func() error {
-		<-egCtx.Done()
-		logger.Log.Info("Stop serve")
-		return httpServer.Shutdown(context.Background())
-	})
+	logger.Log.Info("Create server")
+	server, err := server.NewServer(opts...)
 
-	if err := eg.Wait(); err != nil {
+	if err != nil {
+		logger.Log.Fatal("Create server", zap.Error(err))
+	}
+
+	if err := server.Run(ctx); err != nil {
 		logger.Log.Fatal("Problem with working server", zap.Error(err))
 	}
 }

@@ -2,6 +2,8 @@ package logger
 
 import (
 	"bytes"
+	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,6 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/interop"
+	testgrpc "google.golang.org/grpc/interop/grpc_testing"
 )
 
 func Test_loggingResponseWriter_Write(t *testing.T) {
@@ -245,4 +251,51 @@ func TestRequestLogger(t *testing.T) {
 			srv.Close()
 		})
 	}
+}
+
+func TestInterceptorLogger(t *testing.T) {
+	sink := &testingSink{new((bytes.Buffer))}
+	zap.RegisterSink("testingInceptor", func(u *url.URL) (zap.Sink, error) { return sink, nil })
+	Initialize("INFO", "testingInceptor://")
+
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	s := grpc.NewServer(grpc.UnaryInterceptor(InterceptorLogger))
+
+	testgrpc.RegisterTestServiceServer(
+		s,
+		interop.NewTestServer(),
+	)
+
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			require.FailNow(t, err.Error())
+		}
+	}()
+
+	defer s.Stop()
+
+	t.Run("positive test", func(t *testing.T) {
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+		interop.DoEmptyUnaryCall(context.Background(), client)
+		require.NoError(t, err)
+
+		want := []string{
+			`"msg":"Got incoming grpc request"`,
+			`"msg":"Sending grpc response"`,
+		}
+		logs := sink.String()
+
+		for _, val := range want {
+			assert.Contains(t, logs, val)
+		}
+	})
 }

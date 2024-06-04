@@ -70,6 +70,7 @@ func setEnvForAgent() AgentParameters {
 	os.Setenv("POLL_INTERVAL", "10")
 	os.Setenv("KEY", "key")
 	os.Setenv("RATE_LIMIT", "5")
+	os.Setenv("USE_GRPC", "True")
 
 	return AgentParameters{
 		ListenAddr:     "testEnv",
@@ -78,6 +79,7 @@ func setEnvForAgent() AgentParameters {
 		ReportInterval: 10,
 		RateLimit:      5,
 		PollInterval:   10,
+		UseGRPC:        true,
 	}
 }
 
@@ -89,6 +91,7 @@ func Test_parseAgentFromFile(t *testing.T) {
 		var p AgentParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
+		f.BoolVar(&p.UseGRPC, "grpc", false, "flag for using grpc client, else use http client")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
 		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.UintVar(&p.ReportInterval, "r", 10, "report interval")
@@ -109,6 +112,7 @@ func Test_parseAgentFromFile(t *testing.T) {
 		var p AgentParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
+		f.BoolVar(&p.UseGRPC, "grpc", false, "flag for using grpc client, else use http client")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
 		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.UintVar(&p.ReportInterval, "r", 10, "report interval")
@@ -130,11 +134,13 @@ func Test_parseAgentFromFile(t *testing.T) {
 			ReportInterval: 111,
 			RateLimit:      333,
 			PollInterval:   222,
+			UseGRPC:        true,
 		}
 
 		var p AgentParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
+		f.BoolVar(&p.UseGRPC, "grpc", false, "flag for using grpc client, else use http client")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
 		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.UintVar(&p.ReportInterval, "r", 10, "report interval")
@@ -152,6 +158,7 @@ func Test_parseAgentFromFile(t *testing.T) {
 		var p AgentParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
+		f.BoolVar(&p.UseGRPC, "grpc", false, "flag for using grpc client, else use http client")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
 		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.UintVar(&p.ReportInterval, "r", 10, "report interval")
@@ -174,6 +181,7 @@ func setFlagsForAgent() AgentParameters {
 		"-p=100",
 		"-k=key",
 		"-l=5",
+		"-grpc=true",
 	}
 
 	return AgentParameters{
@@ -183,6 +191,7 @@ func setFlagsForAgent() AgentParameters {
 		ReportInterval: 100,
 		RateLimit:      5,
 		PollInterval:   100,
+		UseGRPC:        true,
 	}
 }
 
@@ -194,6 +203,7 @@ func getDefaultParametersForAgent() AgentParameters {
 		ReportInterval: 10,
 		RateLimit:      10,
 		PollInterval:   2,
+		UseGRPC:        false,
 	}
 }
 
@@ -260,6 +270,7 @@ func setEnvForServer() ServerParameters {
 
 	sp := ServerParameters{
 		FlagRunAddr:     "testEnv",
+		FlagRunGRPCAddr: "testGRPCEnv",
 		FileStoragePath: "/tmp/test.json",
 		CryptoKeyPath:   "testPath",
 		DataBaseDSN:     "test",
@@ -270,6 +281,7 @@ func setEnvForServer() ServerParameters {
 		TrustedSubnet:   ts,
 	}
 	os.Setenv("ADDRESS", sp.FlagRunAddr)
+	os.Setenv("GRPC_ADDRESS", sp.FlagRunGRPCAddr)
 	os.Setenv("FILE_STORAGE_PATH", sp.FileStoragePath)
 	os.Setenv("CRYPTO_KEY", sp.CryptoKeyPath)
 	os.Setenv("DATABASE_DSN", sp.DataBaseDSN)
@@ -286,6 +298,7 @@ func setFlagsForServer() ServerParameters {
 	os.Args = []string{
 		"test",
 		"-a=testFlags",
+		"-grpc-a=testGRPCFlags",
 		"-f=/tmp/test/test.json",
 		"-crypto-key=testPath",
 		"-d=testdb",
@@ -299,6 +312,7 @@ func setFlagsForServer() ServerParameters {
 	_, ts, _ := net.ParseCIDR("192.168.1.0/24")
 	return ServerParameters{
 		FlagRunAddr:     "testFlags",
+		FlagRunGRPCAddr: "testGRPCFlags",
 		FileStoragePath: "/tmp/test/test.json",
 		CryptoKeyPath:   "testPath",
 		DataBaseDSN:     "testdb",
@@ -313,6 +327,7 @@ func setFlagsForServer() ServerParameters {
 func getDefaultParametersForServer() ServerParameters {
 	return ServerParameters{
 		FlagRunAddr:     "localhost:8080",
+		FlagRunGRPCAddr: "localhost:3200",
 		FileStoragePath: "/tmp/metrics-db.json",
 		CryptoKeyPath:   "",
 		DataBaseDSN:     "",
@@ -332,6 +347,7 @@ func Test_parseServerFromFile(t *testing.T) {
 		var p ServerParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
+		f.StringVar(&p.FlagRunGRPCAddr, "grpc-a", "localhost:3200", "address and port to run server")
 		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
@@ -359,6 +375,7 @@ func Test_parseServerFromFile(t *testing.T) {
 		var p ServerParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
+		f.StringVar(&p.FlagRunGRPCAddr, "grpc-a", "localhost:3200", "address and port to run server")
 		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
@@ -391,6 +408,7 @@ func Test_parseServerFromFile(t *testing.T) {
 
 		wantP := ServerParameters{
 			FlagRunAddr:     "configAddr",
+			FlagRunGRPCAddr: "configGRPCAddr",
 			FileStoragePath: "configFile",
 			CryptoKeyPath:   "configCKey",
 			DataBaseDSN:     "configDSN",
@@ -404,6 +422,7 @@ func Test_parseServerFromFile(t *testing.T) {
 		var p ServerParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
+		f.StringVar(&p.FlagRunGRPCAddr, "grpc-a", "localhost:3200", "address and port to run server")
 		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
@@ -428,6 +447,7 @@ func Test_parseServerFromFile(t *testing.T) {
 		var p ServerParameters
 		f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
+		f.StringVar(&p.FlagRunGRPCAddr, "grpc-a", "localhost:3200", "address and port to run server")
 		f.StringVar(&p.HashKey, "k", "", "hash key")
 		f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 		f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")

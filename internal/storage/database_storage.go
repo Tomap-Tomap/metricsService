@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DarkOmap/metricsService/internal/models"
+	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,7 +26,13 @@ type DBStorage struct {
 	retryPolicy retryPolicy
 }
 
-func NewDBStorage(conn *pgxpool.Pool) (*DBStorage, error) {
+func NewDBStorage(ctx context.Context, p parameters.ServerParameters) (*DBStorage, error) {
+	conn, err := pgxpool.New(ctx, p.DataBaseDSN)
+
+	if err != nil {
+		return nil, fmt.Errorf("create pgxpool: %w", err)
+	}
+
 	rp := retryPolicy{3, 1, 2}
 	dbs := &DBStorage{conn: conn, retryPolicy: rp}
 
@@ -34,6 +41,10 @@ func NewDBStorage(conn *pgxpool.Pool) (*DBStorage, error) {
 	}
 
 	return dbs, nil
+}
+
+func (dbs *DBStorage) Close() {
+	dbs.conn.Close()
 }
 
 // PingDB checks database.

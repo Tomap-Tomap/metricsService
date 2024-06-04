@@ -1,5 +1,6 @@
 {
     "address": "",
+    "grpc_address": "",
     "hash_key": "",
     "file_storage_path": "",
     "crypto_key": "",

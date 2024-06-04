@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DarkOmap/metricsService/internal/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -552,4 +553,130 @@ func TestGetGaugesSliceByMap(t *testing.T) {
 			require.Subset(t, tt.want, got)
 		})
 	}
+}
+
+func TestNewMetricByProto(t *testing.T) {
+	t.Run("positive test counter", func(t *testing.T) {
+		c := int64(1)
+		pM := &proto.Metric{
+			Data: &proto.Metric_Delta{Delta: c},
+			Id:   "test",
+			Type: proto.Types_COUNTER,
+		}
+
+		wM := &Metrics{
+			Delta: &c,
+			ID:    "test",
+			MType: "counter",
+		}
+
+		gM, err := NewMetricByProto(pM)
+
+		require.NoError(t, err)
+		require.Equal(t, wM, gM)
+	})
+
+	t.Run("positive test gauge", func(t *testing.T) {
+		c := float64(1)
+		pM := &proto.Metric{
+			Data: &proto.Metric_Value{Value: c},
+			Id:   "test",
+			Type: proto.Types_GAUGE,
+		}
+
+		wM := &Metrics{
+			Value: &c,
+			ID:    "test",
+			MType: "gauge",
+		}
+
+		gM, err := NewMetricByProto(pM)
+
+		require.NoError(t, err)
+		require.Equal(t, wM, gM)
+	})
+
+	t.Run("wrong type gauge test", func(t *testing.T) {
+		c := float64(1)
+		pM := &proto.Metric{
+			Data: &proto.Metric_Value{Value: c},
+			Id:   "test",
+			Type: proto.Types_COUNTER,
+		}
+
+		_, err := NewMetricByProto(pM)
+
+		require.Error(t, err)
+	})
+
+	t.Run("wrong type counter test", func(t *testing.T) {
+		c := int64(1)
+		pM := &proto.Metric{
+			Data: &proto.Metric_Delta{Delta: c},
+			Id:   "test",
+			Type: proto.Types_GAUGE,
+		}
+
+		_, err := NewMetricByProto(pM)
+
+		require.Error(t, err)
+	})
+}
+
+func TestNewMetricsSliceByProto(t *testing.T) {
+	t.Run("positive test", func(t *testing.T) {
+		g1 := float64(1)
+		g2 := float64(2)
+
+		pMs := []*proto.Metric{
+			{
+				Data: &proto.Metric_Value{Value: g1},
+				Id:   "test1",
+				Type: proto.Types_GAUGE,
+			},
+			{
+				Data: &proto.Metric_Value{Value: g2},
+				Id:   "test2",
+				Type: proto.Types_GAUGE,
+			},
+		}
+
+		wMs := []Metrics{
+			{
+				Value: &g1,
+				ID:    "test1",
+				MType: "gauge",
+			},
+			{
+				Value: &g2,
+				ID:    "test2",
+				MType: "gauge",
+			},
+		}
+
+		gMs, err := NewMetricsSliceByProto(pMs)
+		require.NoError(t, err)
+		require.Equal(t, wMs, gMs)
+	})
+
+	t.Run("wrong type", func(t *testing.T) {
+		g1 := float64(1)
+		g2 := float64(2)
+
+		pMs := []*proto.Metric{
+			{
+				Data: &proto.Metric_Value{Value: g1},
+				Id:   "test1",
+				Type: proto.Types_GAUGE,
+			},
+			{
+				Data: &proto.Metric_Value{Value: g2},
+				Id:   "test2",
+				Type: proto.Types_COUNTER,
+			},
+		}
+
+		_, err := NewMetricsSliceByProto(pMs)
+		require.Error(t, err)
+	})
 }

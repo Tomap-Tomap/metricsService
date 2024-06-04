@@ -12,10 +12,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/DarkOmap/metricsService/internal/agent"
-	"github.com/DarkOmap/metricsService/internal/certmanager"
 	"github.com/DarkOmap/metricsService/internal/client"
-	"github.com/DarkOmap/metricsService/internal/compresses"
-	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/memstats"
 	"github.com/DarkOmap/metricsService/internal/parameters"
@@ -36,26 +33,19 @@ func main() {
 		panic(err)
 	}
 
-	logger.Log.Info("Create encrypt manager")
-	em, err := certmanager.NewEncryptManager(p.CryptoKeyPath)
+	logger.Log.Info("Create client")
+	c, err := client.NewClient(p)
 
 	if err != nil {
-		logger.Log.Fatal("Create encrypt manager", zap.Error(err))
+		logger.Log.Fatal("Create client", zap.Error(err))
 	}
+	defer c.Close()
 
-	logger.Log.Info("Create gzip pool")
-	pool := compresses.NewGzipPool(p.RateLimit)
-	defer pool.Close()
-	logger.Log.Info("Create hasher pool")
-	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
-	defer h.Close()
-	logger.Log.Info("Create client")
-	c := client.NewClient(pool, em, h, p.ListenAddr)
 	logger.Log.Info("Init mem stats")
 	ms, err := memstats.NewMemStatsForServer()
 
 	if err != nil {
-		logger.Log.Fatal("create mem stats", zap.Error(err))
+		logger.Log.Fatal("Create mem stats", zap.Error(err))
 	}
 
 	logger.Log.Info("Create agent")

@@ -22,6 +22,7 @@ type AgentParameters struct {
 	ReportInterval uint   `json:"report_interval"`
 	RateLimit      uint   `json:"rate_limit"`
 	PollInterval   uint   `json:"poll_interval"`
+	UseGRPC        bool   `json:"use_grpc"`
 }
 
 // ParseFlagsAgent return agent's parameters from console or env.
@@ -33,6 +34,7 @@ func ParseFlagsAgent() (p AgentParameters) {
 
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
+	f.BoolVar(&p.UseGRPC, "grpc", false, "flag for using grpc client, else use http client")
 	f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
 	f.StringVar(&p.HashKey, "k", "", "hash key")
 	f.UintVar(&p.ReportInterval, "r", 10, "report interval")
@@ -86,6 +88,12 @@ func ParseFlagsAgent() (p AgentParameters) {
 		}
 	}
 
+	if envUG := os.Getenv("USE_GRPC"); envUG != "" {
+		if boolUG, err := strconv.ParseBool(envUG); err == nil {
+			p.UseGRPC = boolUG
+		}
+	}
+
 	return
 }
 
@@ -136,12 +144,18 @@ func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) erro
 		p.RateLimit = cmp.Or(jsonP.RateLimit, p.RateLimit)
 	}
 
+	useGRPC, _ := strconv.ParseBool(f.Lookup("grpc").DefValue)
+	if p.UseGRPC == useGRPC {
+		p.UseGRPC = cmp.Or(jsonP.UseGRPC, p.UseGRPC)
+	}
+
 	return nil
 }
 
 // ServerParameters contains parameters for server.
 type ServerParameters struct {
 	FlagRunAddr     string     `json:"address"`
+	FlagRunGRPCAddr string     `json:"grpc_address"`
 	FileStoragePath string     `json:"file_storage_path"`
 	CryptoKeyPath   string     `json:"crypto_key"`
 	DataBaseDSN     string     `json:"database_dsn"`
@@ -183,6 +197,7 @@ func ParseFlagsServer() (p ServerParameters) {
 
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
+	f.StringVar(&p.FlagRunGRPCAddr, "grpc-a", "localhost:3200", "address and port to run grpc server")
 	f.StringVar(&p.HashKey, "k", "", "hash key")
 	f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 	f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
@@ -222,6 +237,10 @@ func ParseFlagsServer() (p ServerParameters) {
 
 	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
 		p.FlagRunAddr = envAddr
+	}
+
+	if envGRPCAddr := os.Getenv("GRPC_ADDRESS"); envGRPCAddr != "" {
+		p.FlagRunGRPCAddr = envGRPCAddr
 	}
 
 	if envKey := os.Getenv("KEY"); envKey != "" {
@@ -295,6 +314,10 @@ func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) er
 
 	if p.FlagRunAddr == f.Lookup("a").DefValue {
 		p.FlagRunAddr = cmp.Or(jsonP.FlagRunAddr, p.FlagRunAddr)
+	}
+
+	if p.FlagRunGRPCAddr == f.Lookup("grpc-a").DefValue {
+		p.FlagRunGRPCAddr = cmp.Or(jsonP.FlagRunGRPCAddr, p.FlagRunGRPCAddr)
 	}
 
 	if p.FileStoragePath == f.Lookup("f").DefValue {

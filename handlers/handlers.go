@@ -3,7 +3,6 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -18,16 +17,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
-
-// Repository it's type for work with storages.
-type Repository interface {
-	UpdateByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error)
-	ValueByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error)
-	GetAllGauge(ctx context.Context) (map[string]storage.Gauge, error)
-	GetAllCounter(ctx context.Context) (map[string]storage.Counter, error)
-	PingDB(ctx context.Context) error
-	Updates(ctx context.Context, metrics []models.Metrics) error
-}
 
 type Decrypter interface {
 	RequestDecrypt(next http.Handler) http.Handler
@@ -385,7 +374,7 @@ func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 }
 
 // ServiceRouter return router for run server.
-func ServiceRouter(gp *compresses.GzipPool, hasher hasher.Hasher, sh ServiceHandlers, dm Decrypter, ipChecker IPChecker) chi.Router {
+func ServiceRouter(gp *compresses.GzipPool, hasher *hasher.Hasher, sh ServiceHandlers, dm Decrypter, ipChecker IPChecker) chi.Router {
 	r := chi.NewRouter()
 	r.Use(dm.RequestDecrypt)
 	r.Use(hasher.RequestHash)

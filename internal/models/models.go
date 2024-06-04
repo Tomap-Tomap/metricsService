@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/DarkOmap/metricsService/internal/proto"
 )
 
 // Metrics model
@@ -65,6 +67,34 @@ func NewMetricsByJSON(j []byte) (*Metrics, error) {
 	return &m, nil
 }
 
+// NewMetricByProto returns a model by proto.Metric.
+func NewMetricByProto(pM *proto.Metric) (*Metrics, error) {
+	m := Metrics{
+		ID: pM.Id,
+	}
+
+	switch pM.Type {
+	case proto.Types_COUNTER:
+		if v, ok := pM.Data.(*proto.Metric_Delta); ok {
+			m.Delta = &v.Delta
+		} else {
+			return nil, fmt.Errorf("counter type metric must have a delta")
+		}
+
+		m.MType = "counter"
+	case proto.Types_GAUGE:
+		if v, ok := pM.Data.(*proto.Metric_Value); ok {
+			m.Value = &v.Value
+		} else {
+			return nil, fmt.Errorf("gauge type metric must have a value")
+		}
+
+		m.MType = "gauge"
+	}
+
+	return &m, nil
+}
+
 // NewMetricsSliceByJSON returns a set of JSON models.
 func NewMetricsSliceByJSON(j []byte) ([]Metrics, error) {
 	var m []Metrics
@@ -75,6 +105,22 @@ func NewMetricsSliceByJSON(j []byte) ([]Metrics, error) {
 	}
 
 	return m, nil
+}
+
+func NewMetricsSliceByProto(pM []*proto.Metric) ([]Metrics, error) {
+	ms := make([]Metrics, len(pM))
+
+	for i, v := range pM {
+		m, err := NewMetricByProto(v)
+
+		if err != nil {
+			return nil, fmt.Errorf("id %s type %s: %w", v.Id, v.Type, err)
+		}
+
+		ms[i] = *m
+	}
+
+	return ms, nil
 }
 
 // GetGaugesSliceByMap returns models based on the specified data set.

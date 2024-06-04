@@ -29,7 +29,13 @@ func NewProducer(fileName string) (*Producer, error) {
 }
 
 func (p *Producer) ClearFile() error {
-	return p.file.Truncate(0)
+	err := p.file.Truncate(0)
+
+	if err != nil {
+		return err
+	}
+	_, err = p.file.Seek(0, 0)
+	return err
 }
 
 func (p *Producer) Close() error {

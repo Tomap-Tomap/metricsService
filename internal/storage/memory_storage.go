@@ -13,7 +13,7 @@ import (
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/models"
 	"github.com/DarkOmap/metricsService/internal/parameters"
-	"golang.org/x/sync/errgroup"
+	"go.uber.org/zap"
 )
 
 type gauges struct {
@@ -27,22 +27,30 @@ type counters struct {
 }
 
 type MemStorage struct {
-	producer        *file.Producer
-	fileStoragePath string
-	Gauges          gauges   `json:"gauges"`
-	Counters        counters `json:"counters"`
-	storeInterval   uint
+	producer      *file.Producer
+	Gauges        gauges   `json:"gauges"`
+	Counters      counters `json:"counters"`
+	storeInterval uint
 }
 
-func NewMemStorage(ctx context.Context, eg *errgroup.Group, producer *file.Producer, p parameters.ServerParameters) (*MemStorage, error) {
+func NewMemStorage(ctx context.Context, p parameters.ServerParameters) (*MemStorage, error) {
 	ms := MemStorage{}
+
+	if p.FileStoragePath != "" {
+		producer, err := file.NewProducer(p.FileStoragePath)
+
+		if err != nil {
+			return nil, fmt.Errorf("create file producer: %w", err)
+		}
+
+		ms.producer = producer
+	}
+
 	ms.Counters.Data = make(map[string]Counter)
 	ms.Gauges.Data = make(map[string]Gauge)
-	ms.fileStoragePath = p.FileStoragePath
 	ms.storeInterval = p.StoreInterval
-	ms.producer = producer
 
-	if p.Restore {
+	if p.Restore && p.FileStoragePath != "" {
 		consumer, err := file.NewConsumer(p.FileStoragePath)
 
 		if err != nil {
@@ -67,33 +75,38 @@ func NewMemStorage(ctx context.Context, eg *errgroup.Group, producer *file.Produ
 				return nil, fmt.Errorf("read from file for storage: %w", err)
 			}
 		}
+
 		ms.producer.ClearFile()
 	}
 
 	if p.StoreInterval != 0 {
-		ms.runDumping(ctx, eg)
+		ms.runDumping(ctx)
 	}
 
 	return &ms, nil
 }
 
-func (ms *MemStorage) runDumping(ctx context.Context, eg *errgroup.Group) {
-	eg.Go(func() error {
+func (ms *MemStorage) Close() {
+	ms.producer.Close()
+}
+
+func (ms *MemStorage) runDumping(ctx context.Context) {
+	go func() {
 		for {
 			select {
 			case <-time.After(time.Duration(ms.storeInterval) * time.Second):
 				if err := ms.dumpStorage(); err != nil {
-					return fmt.Errorf("dump by interval: %w", err)
+					logger.Log.Warn("Dump by interval", zap.Error(err))
 				}
 			case <-ctx.Done():
 				if err := ms.dumpStorage(); err != nil {
-					return fmt.Errorf("dump by stop: %w", err)
+					logger.Log.Warn("Dump by stop", zap.Error(err))
 				}
 				logger.Log.Info("Stop sync")
-				return nil
+				return
 			}
 		}
-	})
+	}()
 }
 
 func (ms *MemStorage) dumpStorage() error {

@@ -1,5 +1,6 @@
 {
     "address": "configAddr",
+    "grpc_address": "configGRPCAddr",
     "hash_key": "configKey",
     "file_storage_path": "configFile",
     "crypto_key": "configCKey",
