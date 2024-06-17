@@ -13,23 +13,36 @@ import (
 	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/models"
-	"github.com/DarkOmap/metricsService/internal/storage"
 	"github.com/go-chi/chi/v5"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
+const (
+	contentTypeTextPlain       = "text/plain"
+	contentTypeApplicationJSON = "application/json"
+	contetntTypeTextHTML       = "text/html"
+
+	contentTypeCharsetUTF8 = "charset=utf-8"
+
+	headerContentType = "Content-Type"
+)
+
+// Decrypter describes the type for decrypting messages
 type Decrypter interface {
 	RequestDecrypt(next http.Handler) http.Handler
 }
 
+// IPChecker describes the type for checking the IP address
 type IPChecker interface {
 	RequsetIPCheck(next http.Handler) http.Handler
 }
 
+// ServiceHandlers structure with handlers
 type ServiceHandlers struct {
 	ms Repository
 }
 
+// NewServiceHandlers create ServiceHandlers
 func NewServiceHandlers(ms Repository) ServiceHandlers {
 	return ServiceHandlers{ms}
 }
@@ -48,32 +61,33 @@ func NewServiceHandlers(ms Repository) ServiceHandlers {
 //	@Security		ApiKeyAuth
 //	@Router			/update [post]
 func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
-	w.Header().Add("Content-Type", "charset=utf-8")
+	w.Header().Add(headerContentType, contentTypeApplicationJSON)
+	w.Header().Add(headerContentType, contentTypeCharsetUTF8)
 
 	m, err := getModelsByJSON(r.Body)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	m, err = sh.ms.UpdateByMetrics(r.Context(), *m)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	resp, err := json.Marshal(m)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	_, err = w.Write(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // UpdateByURL godoc
@@ -92,22 +106,20 @@ func (sh *ServiceHandlers) updateByJSON(w http.ResponseWriter, r *http.Request) 
 //	@Security		ApiKeyAuth
 //	@Router			/update/{type}/{name}/{value} [post]
 func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain")
-	w.Header().Add("Content-Type", "charset=utf-8")
+	w.Header().Add(headerContentType, contentTypeTextPlain)
+	w.Header().Add(headerContentType, contentTypeCharsetUTF8)
 
 	m, err := models.NewMetricsByStrings(
 		chi.URLParam(r, "name"),
 		chi.URLParam(r, "type"),
 		chi.URLParam(r, "value"),
 	)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	_, err = sh.ms.UpdateByMetrics(r.Context(), *m)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -131,32 +143,33 @@ func (sh *ServiceHandlers) updateByURL(w http.ResponseWriter, r *http.Request) {
 //	@Security		ApiKeyAuth
 //	@Router			/value [post]
 func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
-	w.Header().Add("Content-Type", "charset=utf-8")
+	w.Header().Add(headerContentType, contentTypeApplicationJSON)
+	w.Header().Add(headerContentType, contentTypeCharsetUTF8)
 
 	m, err := getModelsByJSON(r.Body)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	m, err = sh.ms.ValueByMetrics(r.Context(), *m)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	resp, err := json.Marshal(m)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	_, err = w.Write(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // ValueByURL godoc
@@ -175,33 +188,38 @@ func (sh *ServiceHandlers) valueByJSON(w http.ResponseWriter, r *http.Request) {
 //	@Security		ApiKeyAuth
 //	@Router			/value/{type}/{name} [get]
 func (sh *ServiceHandlers) valueByURL(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain")
-	w.Header().Add("Content-Type", "charset=utf-8")
+	w.Header().Add(headerContentType, contentTypeTextPlain)
+	w.Header().Add(headerContentType, contentTypeCharsetUTF8)
 
 	m, err := models.NewMetrics(
 		chi.URLParam(r, "name"),
 		chi.URLParam(r, "type"),
 	)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	m, err = sh.ms.ValueByMetrics(r.Context(), *m)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	if m.Delta != nil {
-		fmt.Fprint(w, *m.Delta)
+		_, err := fmt.Fprint(w, *m.Delta)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, *m.Value)
+	_, err = fmt.Fprint(w, *m.Value)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // All godoc
@@ -231,13 +249,7 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 				<th>name</th>
 				<th>value</th>
 			</tr>
-			{{ range $s, $v := .Counters }}
-			<tr>
-				<td>{{ $s }}</td>
-				<td>{{ $v }}</td>
-			</tr>
-			{{end}}
-			{{ range $s, $v := .Gauges }}
+			{{ range $s, $v := . }}
 			<tr>
 				<td>{{ $s }}</td>
 				<td>{{ $v }}</td>
@@ -248,41 +260,25 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 	
 	</html>`
 
-	w.Header().Add("Content-Type", "text/html")
-	w.Header().Add("Content-Type", "charset=utf-8")
+	w.Header().Add(headerContentType, contetntTypeTextHTML)
+	w.Header().Add(headerContentType, contentTypeCharsetUTF8)
 
 	t := template.New("all tmpl")
 	t, err := t.Parse(tmpl)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	type resultTable struct {
-		Counters map[string]storage.Counter
-		Gauges   map[string]storage.Gauge
 	}
 
 	ctx := r.Context()
 
-	counters, err := sh.ms.GetAllCounter(ctx)
-
+	data, err := sh.ms.GetAll(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	gauges, err := sh.ms.GetAllGauge(ctx)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	result := resultTable{counters, gauges}
-	err = t.Execute(w, result)
-
+	err = t.Execute(w, data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -302,11 +298,10 @@ func (sh *ServiceHandlers) all(w http.ResponseWriter, r *http.Request) {
 //	@Security		ApiKeyAuth
 //	@Router			/ping [get]
 func (sh *ServiceHandlers) ping(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain")
-	w.Header().Add("Content-Type", "charset=utf-8")
+	w.Header().Add(headerContentType, contentTypeTextPlain)
+	w.Header().Add(headerContentType, contentTypeCharsetUTF8)
 
 	err := sh.ms.PingDB(r.Context())
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -329,26 +324,23 @@ func (sh *ServiceHandlers) ping(w http.ResponseWriter, r *http.Request) {
 //	@Security		ApiKeyAuth
 //	@Router			/updates [post]
 func (sh *ServiceHandlers) updates(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain")
-	w.Header().Add("Content-Type", "charset=utf-8")
+	w.Header().Add(headerContentType, contentTypeTextPlain)
+	w.Header().Add(headerContentType, contentTypeCharsetUTF8)
 
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(r.Body)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	m, err := models.NewMetricsSliceByJSON(buf.Bytes())
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	err = sh.ms.Updates(r.Context(), m)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -359,13 +351,11 @@ func (sh *ServiceHandlers) updates(w http.ResponseWriter, r *http.Request) {
 func getModelsByJSON(body io.ReadCloser) (*models.Metrics, error) {
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(body)
-
 	if err != nil {
 		return nil, err
 	}
 
 	m, err := models.NewMetricsByJSON(buf.Bytes())
-
 	if err != nil {
 		return nil, err
 	}

@@ -1,3 +1,4 @@
+// Package server contains structures and methods for running the server
 package server
 
 import (
@@ -18,20 +19,22 @@ import (
 	"google.golang.org/grpc"
 )
 
+// Server this is a metrics storage server
 type Server struct {
 	httpServer *http.Server
 	Listener   net.Listener
 	grpsServer *grpc.Server
 }
 
-type ServerOptionFunc func(*Server) error
+// OptionFunc this is a function for configuring the server
+type OptionFunc func(*Server) error
 
-func NewServer(opts ...ServerOptionFunc) (*Server, error) {
+// NewServer create Server
+func NewServer(opts ...OptionFunc) (*Server, error) {
 	s := &Server{}
 
 	for _, opt := range opts {
 		err := opt(s)
-
 		if err != nil {
 			return nil, err
 		}
@@ -39,6 +42,7 @@ func NewServer(opts ...ServerOptionFunc) (*Server, error) {
 	return s, nil
 }
 
+// Run runs server
 func (s *Server) Run(ctx context.Context) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 
@@ -92,12 +96,12 @@ func (s *Server) runGRPCServer(ctx context.Context, eg *errgroup.Group) {
 	})
 }
 
-func WithHTTP(r handlers.Repository, ipc *ip.IPChecker, h *hasher.Hasher, gp *compresses.GzipPool, p parameters.ServerParameters) ServerOptionFunc {
+// WithHTTP returns a functional option that adds http handlers to the server
+func WithHTTP(r handlers.Repository, ipc *ip.Checker, h *hasher.Hasher, gp *compresses.GzipPool, p parameters.ServerParameters) OptionFunc {
 	return func(s *Server) error {
 		logger.Log.Info("Create decrypt manager")
 
 		dm, err := certmanager.NewDecryptManager(p.CryptoKeyPath)
-
 		if err != nil {
 			return fmt.Errorf("create descrypt manager: %w", err)
 		}
@@ -118,7 +122,8 @@ func WithHTTP(r handlers.Repository, ipc *ip.IPChecker, h *hasher.Hasher, gp *co
 	}
 }
 
-func WithGRPC(r handlers.Repository, ipc *ip.IPChecker, h *hasher.Hasher, p parameters.ServerParameters) ServerOptionFunc {
+// WithGRPC returns a functional option that adds grpc handlers to the server
+func WithGRPC(r handlers.Repository, ipc *ip.Checker, h *hasher.Hasher, p parameters.ServerParameters) OptionFunc {
 	return func(s *Server) error {
 		logger.Log.Info("Create grpc server")
 

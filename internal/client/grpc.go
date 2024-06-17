@@ -14,13 +14,15 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 )
 
-type ClientGRPC struct {
+// GRPC client's grpc structure
+type GRPC struct {
 	client proto.MetricsClient
 	hasher *hasher.Hasher
 	conn   *grpc.ClientConn
 }
 
-func NewClientGRPC(p parameters.AgentParameters) (*ClientGRPC, error) {
+// NewGRPC create new grpc client
+func NewGRPC(p parameters.AgentParameters) (*GRPC, error) {
 	logger.Log.Info("Create hasher pool")
 	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
 
@@ -33,24 +35,30 @@ func NewClientGRPC(p parameters.AgentParameters) (*ClientGRPC, error) {
 		),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("create grpc client conntection: %w", err)
 	}
 
-	return &ClientGRPC{
+	return &GRPC{
 		client: proto.NewMetricsClient(conn),
 		hasher: h,
 		conn:   conn,
 	}, nil
 }
 
-func (gc *ClientGRPC) Close() {
+// Close closes grpc client
+func (gc *GRPC) Close() error {
 	gc.hasher.Close()
-	gc.conn.Close()
+	err := gc.conn.Close()
+	if err != nil {
+		return fmt.Errorf("close connetion: %w", err)
+	}
+
+	return nil
 }
 
-func (gc *ClientGRPC) SendGauge(ctx context.Context, name string, value float64) error {
+// SendGauge sends gauge metric to server
+func (gc *GRPC) SendGauge(ctx context.Context, name string, value float64) error {
 	metric := proto.Metric{
 		Data: &proto.Metric_Value{Value: value},
 		Id:   name,
@@ -58,15 +66,15 @@ func (gc *ClientGRPC) SendGauge(ctx context.Context, name string, value float64)
 	}
 
 	_, err := gc.client.Update(ctx, &proto.UpdateRequest{Metric: &metric})
-
 	if err != nil {
-		return fmt.Errorf("send gauge: %w", err)
+		return fmt.Errorf("send gauge metric with grpc name %s value %f: %w", name, value, err)
 	}
 
 	return nil
 }
 
-func (gc *ClientGRPC) SendCounter(ctx context.Context, name string, delta int64) error {
+// SendCounter sends counter metric to server
+func (gc *GRPC) SendCounter(ctx context.Context, name string, delta int64) error {
 	metric := proto.Metric{
 		Data: &proto.Metric_Delta{Delta: delta},
 		Id:   name,
@@ -74,7 +82,6 @@ func (gc *ClientGRPC) SendCounter(ctx context.Context, name string, delta int64)
 	}
 
 	_, err := gc.client.Update(ctx, &proto.UpdateRequest{Metric: &metric})
-
 	if err != nil {
 		return fmt.Errorf("send conter: %w", err)
 	}
@@ -82,7 +89,8 @@ func (gc *ClientGRPC) SendCounter(ctx context.Context, name string, delta int64)
 	return nil
 }
 
-func (gc *ClientGRPC) SendBatch(ctx context.Context, batch map[string]float64) error {
+// SendBatch sends metrics to server
+func (gc *GRPC) SendBatch(ctx context.Context, batch map[string]float64) error {
 	metrics := make([]*proto.Metric, 0, len(batch))
 
 	for i, v := range batch {
@@ -94,9 +102,8 @@ func (gc *ClientGRPC) SendBatch(ctx context.Context, batch map[string]float64) e
 	}
 
 	_, err := gc.client.Updates(ctx, &proto.UpdatesRequest{Metrics: metrics})
-
 	if err != nil {
-		return fmt.Errorf("send batch: %w", err)
+		return fmt.Errorf("send batch in grpc: %w", err)
 	}
 
 	return nil

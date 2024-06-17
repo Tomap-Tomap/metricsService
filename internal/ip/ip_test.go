@@ -31,7 +31,7 @@ func TestIPChecker_RequsetIPCheck(t *testing.T) {
 
 		require.NoError(t, err)
 
-		ipc := NewIPChecker(ts)
+		ipc := NewChecker(ts)
 
 		webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -52,7 +52,7 @@ func TestIPChecker_RequsetIPCheck(t *testing.T) {
 	})
 
 	t.Run("test nil ipNET", func(t *testing.T) {
-		ipc := NewIPChecker(nil)
+		ipc := NewChecker(nil)
 
 		webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -77,7 +77,7 @@ func TestIPChecker_RequsetIPCheck(t *testing.T) {
 
 		require.NoError(t, err)
 
-		ipc := NewIPChecker(ts)
+		ipc := NewChecker(ts)
 
 		webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -102,7 +102,7 @@ func TestIPChecker_RequsetIPCheck(t *testing.T) {
 
 		require.NoError(t, err)
 
-		ipc := NewIPChecker(ts)
+		ipc := NewChecker(ts)
 
 		webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -128,7 +128,7 @@ func TestIPChecker_InterceptorIPCheck(t *testing.T) {
 
 	require.NoError(t, err)
 
-	ipc := NewIPChecker(ts)
+	ipc := NewChecker(ts)
 
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)

@@ -10,14 +10,16 @@ import (
 	"sync"
 )
 
+// Producer structure for working with writing data to a file
 type Producer struct {
 	file    *os.File
 	Encoder *json.Encoder
 	m       sync.Mutex
 }
 
+// NewProducer create Producer
 func NewProducer(fileName string) (*Producer, error) {
-	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0666)
+	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0o666)
 	if err != nil {
 		return nil, err
 	}
@@ -28,9 +30,9 @@ func NewProducer(fileName string) (*Producer, error) {
 	}, nil
 }
 
+// ClearFile clears file
 func (p *Producer) ClearFile() error {
 	err := p.file.Truncate(0)
-
 	if err != nil {
 		return err
 	}
@@ -38,10 +40,12 @@ func (p *Producer) ClearFile() error {
 	return err
 }
 
+// Close closes Producer
 func (p *Producer) Close() error {
 	return p.file.Close()
 }
 
+// WriteInFile writes value in file
 func (p *Producer) WriteInFile(value any) error {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -53,13 +57,15 @@ func (p *Producer) WriteInFile(value any) error {
 	return nil
 }
 
+// Consumer a structure for working with reading data from a file
 type Consumer struct {
 	file    *os.File
 	Decoder *json.Decoder
 }
 
+// NewConsumer create Consumer
 func NewConsumer(fileName string) (*Consumer, error) {
-	file, err := os.OpenFile(fileName, os.O_RDONLY|os.O_CREATE, 0666)
+	file, err := os.OpenFile(fileName, os.O_RDONLY|os.O_CREATE, 0o666)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +76,7 @@ func NewConsumer(fileName string) (*Consumer, error) {
 	}, nil
 }
 
+// Close closes Consumer
 func (c *Consumer) Close() error {
 	return c.file.Close()
 }

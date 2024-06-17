@@ -11,8 +11,8 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
-// MemStatsForServer stores statistics data and defines methods for working with it.
-type MemStatsForServer struct {
+// ForServer stores statistics data and defines methods for working with it.
+type ForServer struct {
 	*mem.VirtualMemoryStat
 	runtime.MemStats
 	sync.RWMutex
@@ -20,10 +20,10 @@ type MemStatsForServer struct {
 	RandomValue    float64
 }
 
-func NewMemStatsForServer() (*MemStatsForServer, error) {
-	ms := &MemStatsForServer{}
+// NewForServer create new mem stats for server
+func NewForServer() (*ForServer, error) {
+	ms := &ForServer{}
 	err := ms.ReadMemStats()
-
 	if err != nil {
 		return nil, fmt.Errorf("read mem stats: %w", err)
 	}
@@ -31,7 +31,7 @@ func NewMemStatsForServer() (*MemStatsForServer, error) {
 }
 
 // ReadMemStats do updates memory data.
-func (ms *MemStatsForServer) ReadMemStats() error {
+func (ms *ForServer) ReadMemStats() error {
 	ms.Lock()
 	defer ms.Unlock()
 	var err error
@@ -39,13 +39,11 @@ func (ms *MemStatsForServer) ReadMemStats() error {
 	runtime.ReadMemStats(&ms.MemStats)
 
 	ms.VirtualMemoryStat, err = mem.VirtualMemory()
-
 	if err != nil {
 		return fmt.Errorf("get virtual memory: %w", err)
 	}
 
 	CPUutilization, err := cpu.Percent(0, false)
-
 	if err != nil {
 		return fmt.Errorf("get cpu unitilization")
 	}
@@ -57,7 +55,7 @@ func (ms *MemStatsForServer) ReadMemStats() error {
 }
 
 // GetMap return memory data.
-func (ms *MemStatsForServer) GetMap() map[string]float64 {
+func (ms *ForServer) GetMap() map[string]float64 {
 	ms.RLock()
 	defer ms.RUnlock()
 	return map[string]float64{

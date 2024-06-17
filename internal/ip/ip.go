@@ -1,3 +1,4 @@
+// Package ip describes the structures for working with IP
 package ip
 
 import (
@@ -14,11 +15,16 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	headerXRealIP = "X-Real-IP"
+)
+
 var (
 	localIP string
 	once    sync.Once
 )
 
+// GetLocalIP returns the local IP
 func GetLocalIP() string {
 	once.Do(func() {
 		addrs, err := net.InterfaceAddrs()
@@ -40,31 +46,35 @@ func GetLocalIP() string {
 	return localIP
 }
 
+// InterceptorAddRealIP an interceptor for adding an X-Real-IP header
 func InterceptorAddRealIP(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	ctx = metadata.AppendToOutgoingContext(
 		ctx,
-		"X-Real-IP", GetLocalIP(),
+		headerXRealIP, GetLocalIP(),
 	)
 
 	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
-type IPChecker struct {
+// Checker structure with methods for IP validation
+type Checker struct {
 	ipNet *net.IPNet
 }
 
-func NewIPChecker(ipNet *net.IPNet) *IPChecker {
-	return &IPChecker{ipNet: ipNet}
+// NewChecker create IPChecker
+func NewChecker(ipNet *net.IPNet) *Checker {
+	return &Checker{ipNet: ipNet}
 }
 
-func (ipc *IPChecker) RequsetIPCheck(next http.Handler) http.Handler {
+// RequsetIPCheck middleware checking IP
+func (ipc *Checker) RequsetIPCheck(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		if ipc.ipNet == nil {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		realIP := r.Header.Get("X-Real-IP")
+		realIP := r.Header.Get(headerXRealIP)
 
 		if realIP == "" {
 			http.Error(w, "empty header", http.StatusForbidden)
@@ -82,7 +92,8 @@ func (ipc *IPChecker) RequsetIPCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func (ipc *IPChecker) InterceptorIPCheck(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+// InterceptorIPCheck interceptor checking IP
+func (ipc *Checker) InterceptorIPCheck(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 
 	if !ok {
@@ -90,7 +101,7 @@ func (ipc *IPChecker) InterceptorIPCheck(ctx context.Context, req any, info *grp
 		return
 	}
 
-	ip := md.Get("X-Real-IP")
+	ip := md.Get(headerXRealIP)
 
 	if len(ip) == 0 {
 		err = status.Error(codes.PermissionDenied, "missing X-Real-IP")

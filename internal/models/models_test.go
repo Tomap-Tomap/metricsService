@@ -311,9 +311,9 @@ func Test_checkType(t *testing.T) {
 
 func TestNewMetricsForGauge(t *testing.T) {
 	var (
-		testGauge1         = 1.1
-		testGauge2         = 0.1
-		testGauge3 float64 = 0
+		testGauge1 = 1.1
+		testGauge2 = 0.1
+		testGauge3 float64
 	)
 	type args struct {
 		id    string
@@ -352,7 +352,7 @@ func TestNewMetricsForCounter(t *testing.T) {
 	var (
 		testCounter1 int64 = 1
 		testCounter2 int64 = 2
-		testCounter3 int64 = 0
+		testCounter3 int64
 	)
 	type args struct {
 		id    string
@@ -391,7 +391,7 @@ func Test_counterMetricsBySting(t *testing.T) {
 	var (
 		testCounter1 int64 = 1
 		testCounter2 int64 = 2
-		testCounter3 int64 = 0
+		testCounter3 int64
 	)
 	type args struct {
 		id    string
@@ -440,9 +440,9 @@ func Test_counterMetricsBySting(t *testing.T) {
 
 func Test_gaugeMetricsByStrings(t *testing.T) {
 	var (
-		testGauge1         = 1.1
-		testGauge2         = 0.1
-		testGauge3 float64 = 0
+		testGauge1 = 1.1
+		testGauge2 = 0.1
+		testGauge3 float64
 	)
 	type args struct {
 		id    string

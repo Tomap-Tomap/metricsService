@@ -14,6 +14,25 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	queryUpdateGauges = `
+		WITH t AS (
+			INSERT INTO gauges (Name, Value) VALUES ($1, $2)
+			ON CONFLICT (Name) DO UPDATE SET Value = EXCLUDED.Value
+			RETURNING *
+		)
+		SELECT Value FROM t WHERE Name = $1
+	`
+	queryUpdateCounters = `
+		WITH t AS (
+			INSERT INTO counters (Name, Delta) VALUES ($1, $2)
+			ON CONFLICT (Name) DO UPDATE SET Delta = counters.Delta + EXCLUDED.Delta
+			RETURNING *
+		)
+		SELECT Delta FROM t WHERE Name = $1
+	`
+)
+
 type retryPolicy struct {
 	retryCount int
 	duration   int
@@ -26,9 +45,9 @@ type DBStorage struct {
 	retryPolicy retryPolicy
 }
 
+// NewDBStorage create DBStorage
 func NewDBStorage(ctx context.Context, p parameters.ServerParameters) (*DBStorage, error) {
 	conn, err := pgxpool.New(ctx, p.DataBaseDSN)
-
 	if err != nil {
 		return nil, fmt.Errorf("create pgxpool: %w", err)
 	}
@@ -43,8 +62,11 @@ func NewDBStorage(ctx context.Context, p parameters.ServerParameters) (*DBStorag
 	return dbs, nil
 }
 
-func (dbs *DBStorage) Close() {
+// Close closes DBStorage
+func (dbs *DBStorage) Close() error {
 	dbs.conn.Close()
+
+	return nil
 }
 
 // PingDB checks database.
@@ -55,86 +77,67 @@ func (dbs *DBStorage) PingDB(ctx context.Context) error {
 // UpdateByMetrics updates data on database and returns new data.
 func (dbs *DBStorage) UpdateByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
 	switch m.MType {
-	case "counter":
+	case models.TypeCounter:
 		return dbs.updateCounterByMetrics(ctx, m.ID, (*Counter)(m.Delta))
-	case "gauge":
+	case models.TypeGauge:
 		return dbs.updateGaugeByMetrics(ctx, m.ID, (*Gauge)(m.Value))
 	default:
-		return nil, fmt.Errorf("unknown type %s", m.MType)
+		return nil, ErrUnknownType
 	}
 }
 
 // ValueByMetrics returns data from database.
 func (dbs *DBStorage) ValueByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
 	switch m.MType {
-	case "counter":
+	case models.TypeCounter:
 		return dbs.valueCounterByMetrics(ctx, m.ID)
-	case "gauge":
+	case models.TypeGauge:
 		return dbs.valueGaugeByMetrics(ctx, m.ID)
 	default:
-		return nil, fmt.Errorf("unknown type %s", m.MType)
+		return nil, ErrUnknownType
 	}
 }
 
-// GetAllGauge returns gauges data from database.
-func (dbs *DBStorage) GetAllGauge(ctx context.Context) (map[string]Gauge, error) {
+// GetAll returns all data from DBStorage
+func (dbs *DBStorage) GetAll(ctx context.Context) (map[string]fmt.Stringer, error) {
 	var (
 		s      string
-		g      float64
-		retMap = make(map[string]Gauge)
+		g      Gauge
+		c      Counter
+		t      string
+		retMap = make(map[string]fmt.Stringer)
 		rows   pgx.Rows
 	)
 
 	rows, err := retry2[pgx.Rows](ctx, dbs.retryPolicy, func() (pgx.Rows, error) {
-		return dbs.conn.Query(ctx, "SELECT Name, Value FROM gauges")
+		return dbs.conn.Query(ctx,
+			`SELECT
+				Name, Value as Value, 0 as Delta, 'gauge' as Type
+			FROM gauges
+			UNION
+			SELECT
+				 Name, 0, Delta, 'counter' as Type
+			FROM counters`,
+		)
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("get gauges from db: %w", err)
+		return nil, fmt.Errorf("get data from db: %w", err)
 	}
 	defer rows.Close()
 
 	_, err = retry2[pgconn.CommandTag](ctx, dbs.retryPolicy, func() (pgconn.CommandTag, error) {
-		return pgx.ForEachRow(rows, []any{&s, &g}, func() error {
-			retMap[s] = Gauge(g)
+		return pgx.ForEachRow(rows, []any{&s, &g, &c, &t}, func() error {
+			if t == models.TypeGauge {
+				retMap[s] = g
+			} else {
+				retMap[s] = c
+			}
+
 			return nil
 		})
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("parse gauges from db: %w", err)
-	}
-
-	return retMap, nil
-}
-
-// GetAllCounter returns counters data from database.
-func (dbs *DBStorage) GetAllCounter(ctx context.Context) (map[string]Counter, error) {
-	var (
-		s      string
-		c      int64
-		retMap = make(map[string]Counter)
-		rows   pgx.Rows
-	)
-
-	rows, err := retry2[pgx.Rows](ctx, dbs.retryPolicy, func() (pgx.Rows, error) {
-		return dbs.conn.Query(ctx, "SELECT Name, Delta FROM counters")
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("get counters from db: %w", err)
-	}
-	defer rows.Close()
-
-	_, err = retry2[pgconn.CommandTag](ctx, dbs.retryPolicy, func() (pgconn.CommandTag, error) {
-		return pgx.ForEachRow(rows, []any{&s, &c}, func() error {
-			retMap[s] = Counter(c)
-			return nil
-		})
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("parse counters from db: %w", err)
+		return nil, fmt.Errorf("parse data from db: %w", err)
 	}
 
 	return retMap, nil
@@ -144,30 +147,12 @@ func (dbs *DBStorage) GetAllCounter(ctx context.Context) (map[string]Counter, er
 func (dbs *DBStorage) Updates(ctx context.Context, metrics []models.Metrics) error {
 	batch := &pgx.Batch{}
 
-	queryGauges := `
-		WITH t AS (
-			INSERT INTO gauges (Name, Value) VALUES ($1, $2)
-			ON CONFLICT (Name) DO UPDATE SET Value = EXCLUDED.Value
-			RETURNING *
-		)
-		SELECT Value FROM t WHERE Name = $1
-	`
-
-	queryCounters := `
-		WITH t AS (
-			INSERT INTO counters (Name, Delta) VALUES ($1, $2)
-			ON CONFLICT (Name) DO UPDATE SET Delta = counters.Delta + EXCLUDED.Delta
-			RETURNING *
-		)
-		SELECT Delta FROM t WHERE Name = $1
-	`
-
 	for _, val := range metrics {
 		switch val.MType {
-		case "gauge":
-			batch.Queue(queryGauges, val.ID, *val.Value)
-		case "counter":
-			batch.Queue(queryCounters, val.ID, *val.Delta)
+		case models.TypeGauge:
+			batch.Queue(queryUpdateGauges, val.ID, *val.Value)
+		case models.TypeCounter:
+			batch.Queue(queryUpdateCounters, val.ID, *val.Delta)
 		}
 	}
 
@@ -178,7 +163,6 @@ func (dbs *DBStorage) Updates(ctx context.Context, metrics []models.Metrics) err
 
 		return err
 	})
-
 	if err != nil {
 		return fmt.Errorf("send batch: %w", err)
 	}
@@ -207,11 +191,9 @@ func (dbs *DBStorage) createTables() error {
 	`
 
 	err := pgx.BeginFunc(ctx, dbs.conn, func(tx pgx.Tx) error {
-
 		_, err := retry2[pgconn.CommandTag](ctx, dbs.retryPolicy, func() (pgconn.CommandTag, error) {
 			return dbs.conn.Exec(ctx, createGaugesQuery)
 		})
-
 		if err != nil {
 			return fmt.Errorf("create gauges table: %w", err)
 		}
@@ -219,14 +201,12 @@ func (dbs *DBStorage) createTables() error {
 		_, err = retry2[pgconn.CommandTag](ctx, dbs.retryPolicy, func() (pgconn.CommandTag, error) {
 			return dbs.conn.Exec(ctx, createCountersQuery)
 		})
-
 		if err != nil {
 			return fmt.Errorf("create counters table: %w", err)
 		}
 
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}
@@ -236,26 +216,16 @@ func (dbs *DBStorage) createTables() error {
 
 func (dbs *DBStorage) updateCounterByMetrics(ctx context.Context, id string, delta *Counter) (*models.Metrics, error) {
 	if delta == nil {
-		return nil, fmt.Errorf("delta is empty")
+		return nil, ErrEmptyDelta
 	}
-
-	query := `
-		WITH t AS (
-			INSERT INTO counters (Name, Delta) VALUES ($1, $2)
-			ON CONFLICT (Name) DO UPDATE SET Delta = counters.Delta + EXCLUDED.Delta
-			RETURNING *
-		)
-		SELECT Delta FROM t WHERE Name = $1
-	`
 
 	var newDelta int64
 
 	err := retry(ctx, dbs.retryPolicy, func() error {
-		return dbs.conn.QueryRow(ctx, query, id, *delta).Scan(&newDelta)
+		return dbs.conn.QueryRow(ctx, queryUpdateCounters, id, *delta).Scan(&newDelta)
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("query execution: %w", err)
+		return nil, fmt.Errorf("update counter metric name %s delta %d: %w", id, *delta, err)
 	}
 
 	return models.NewMetricsForCounter(id, newDelta), nil
@@ -263,26 +233,16 @@ func (dbs *DBStorage) updateCounterByMetrics(ctx context.Context, id string, del
 
 func (dbs *DBStorage) updateGaugeByMetrics(ctx context.Context, id string, value *Gauge) (*models.Metrics, error) {
 	if value == nil {
-		return nil, fmt.Errorf("value is empty")
+		return nil, ErrEmptyValue
 	}
-
-	query := `
-		WITH t AS (
-			INSERT INTO gauges (Name, Value) VALUES ($1, $2)
-			ON CONFLICT (Name) DO UPDATE SET Value = EXCLUDED.Value
-			RETURNING *
-		)
-		SELECT Value FROM t WHERE Name = $1
-	`
 
 	var newValue float64
 
 	err := retry(ctx, dbs.retryPolicy, func() error {
-		return dbs.conn.QueryRow(ctx, query, id, *value).Scan(&newValue)
+		return dbs.conn.QueryRow(ctx, queryUpdateGauges, id, *value).Scan(&newValue)
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("query execution: %w", err)
+		return nil, fmt.Errorf("update gauge metric name %s value %f: %w", id, *value, err)
 	}
 
 	return models.NewMetricsForGauge(id, newValue), nil
@@ -293,9 +253,8 @@ func (dbs *DBStorage) valueCounterByMetrics(ctx context.Context, id string) (*mo
 	err := retry(ctx, dbs.retryPolicy, func() error {
 		return dbs.conn.QueryRow(ctx, "SELECT Delta FROM counters WHERE Name = $1", id).Scan(&c)
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("get counter %s: %w", id, err)
+		return nil, fmt.Errorf("get counter in DB %s: %w", id, err)
 	}
 
 	return models.NewMetricsForCounter(id, c), nil
@@ -306,9 +265,8 @@ func (dbs *DBStorage) valueGaugeByMetrics(ctx context.Context, id string) (*mode
 	err := retry(ctx, dbs.retryPolicy, func() error {
 		return dbs.conn.QueryRow(ctx, "SELECT Value FROM gauges WHERE Name = $1", id).Scan(&g)
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("get gauge %s: %w", id, err)
+		return nil, fmt.Errorf("get gauge in DB %s: %w", id, err)
 	}
 
 	return models.NewMetricsForGauge(id, g), nil

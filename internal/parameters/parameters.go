@@ -46,7 +46,10 @@ func ParseFlagsAgent() (p AgentParameters) {
 		f.StringVar(&config, "config", "config.json", "path to agent configuration")
 	}
 
-	f.Parse(os.Args[1:])
+	err := f.Parse(os.Args[1:])
+	if err != nil {
+		logger.Log.Warn("Parse argument", zap.Error(err))
+	}
 
 	if err := parseAgentFromFile(f, &p, config); err != nil {
 		logger.Log.Warn("Config file will not read", zap.Error(err))
@@ -105,14 +108,12 @@ func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) erro
 	var jsonP AgentParameters
 
 	file, err := os.Open(config)
-
 	if err != nil {
 		return fmt.Errorf("failed open config file: %w", err)
 	}
 
 	jd := json.NewDecoder(file)
 	err = jd.Decode(&jsonP)
-
 	if err != nil {
 		return fmt.Errorf("failed decode config file: %w", err)
 	}
@@ -166,6 +167,7 @@ type ServerParameters struct {
 	TrustedSubnet   *net.IPNet `json:"trusted_subnet"`
 }
 
+// UnmarshalJSON converts json to a structure
 func (sp *ServerParameters) UnmarshalJSON(data []byte) (err error) {
 	type ServerParametersAlias ServerParameters
 
@@ -177,7 +179,6 @@ func (sp *ServerParameters) UnmarshalJSON(data []byte) (err error) {
 	}
 
 	err = json.Unmarshal(data, &spAlias)
-
 	if err != nil {
 		return
 	}
@@ -219,11 +220,13 @@ func ParseFlagsServer() (p ServerParameters) {
 	var trustedSubnet string
 	f.StringVar(&trustedSubnet, "t", "", "trusted subnet")
 
-	f.Parse(os.Args[1:])
+	err := f.Parse(os.Args[1:])
+	if err != nil {
+		logger.Log.Warn("Parse argument", zap.Error(err))
+	}
 
 	if trustedSubnet != "" {
 		_, ts, err := net.ParseCIDR(trustedSubnet)
-
 		if err != nil {
 			logger.Log.Warn("Parse CIDR on flags", zap.Error(err))
 		}
@@ -281,7 +284,6 @@ func ParseFlagsServer() (p ServerParameters) {
 
 	if envTS := os.Getenv("TRUSTED_SUBNET"); envTS != "" {
 		_, ts, err := net.ParseCIDR(envTS)
-
 		if err != nil {
 			logger.Log.Warn("Parse CIDR on env", zap.Error(err))
 		}
@@ -300,14 +302,12 @@ func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) er
 	var jsonP ServerParameters
 
 	file, err := os.Open(config)
-
 	if err != nil {
 		return fmt.Errorf("failed open config file: %w", err)
 	}
 
 	jd := json.NewDecoder(file)
 	err = jd.Decode(&jsonP)
-
 	if err != nil {
 		return fmt.Errorf("config file will not read: %w", err)
 	}

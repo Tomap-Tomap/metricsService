@@ -19,7 +19,7 @@ type CompresserMockedObject struct {
 	mock.Mock
 }
 
-func (c *CompresserMockedObject) GetCompressedJSON(m any) ([]byte, error) {
+func (c *CompresserMockedObject) GetCompressedJSON(any) ([]byte, error) {
 	args := c.Called()
 
 	if args.Get(0) == nil {
@@ -30,14 +30,13 @@ func (c *CompresserMockedObject) GetCompressedJSON(m any) ([]byte, error) {
 }
 
 func (c *CompresserMockedObject) Close() {
-
 }
 
 type EncrypterMockedObject struct {
 	mock.Mock
 }
 
-func (e *EncrypterMockedObject) EncryptMessage(m []byte) ([]byte, error) {
+func (e *EncrypterMockedObject) EncryptMessage([]byte) ([]byte, error) {
 	args := e.Called()
 
 	if args.Get(0) == nil {
@@ -66,7 +65,7 @@ func TestSendGauge(t *testing.T) {
 		defer ts.Close()
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -95,7 +94,7 @@ func TestSendGauge(t *testing.T) {
 		defer ts.Close()
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -116,7 +115,7 @@ func TestSendGauge(t *testing.T) {
 		emo.On("EncryptMessage").Return([]byte("test"), nil)
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -137,7 +136,7 @@ func TestSendGauge(t *testing.T) {
 		emo.On("EncryptMessage").Return([]byte("test"), nil)
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -158,7 +157,7 @@ func TestSendGauge(t *testing.T) {
 		emo.On("EncryptMessage").Return(nil, fmt.Errorf("test error"))
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -188,7 +187,7 @@ func TestSendGauge(t *testing.T) {
 
 		h := hasher.NewHasher([]byte("test"), 0)
 		h.Close()
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -220,7 +219,7 @@ func TestSendCounter(t *testing.T) {
 		defer ts.Close()
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -249,7 +248,7 @@ func TestSendCounter(t *testing.T) {
 		defer ts.Close()
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -270,7 +269,7 @@ func TestSendCounter(t *testing.T) {
 		emo.On("EncryptMessage").Return([]byte("test"), nil)
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -291,7 +290,7 @@ func TestSendCounter(t *testing.T) {
 		emo.On("EncryptMessage").Return([]byte("test"), nil)
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -312,7 +311,7 @@ func TestSendCounter(t *testing.T) {
 		emo.On("EncryptMessage").Return(nil, fmt.Errorf("test error"))
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -342,7 +341,7 @@ func TestSendCounter(t *testing.T) {
 
 		h := hasher.NewHasher([]byte("test"), 0)
 		h.Close()
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -372,7 +371,7 @@ func TestClient_SendBatch(t *testing.T) {
 		defer ts.Close()
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -392,7 +391,7 @@ func TestClient_SendBatch(t *testing.T) {
 		defer ts.Close()
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -406,7 +405,7 @@ func TestClient_SendBatch(t *testing.T) {
 	t.Run("test broken server", func(t *testing.T) {
 		t.Parallel()
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -423,7 +422,7 @@ func TestClient_SendBatch(t *testing.T) {
 		cmo := new(CompresserMockedObject)
 		cmo.On("GetCompressedJSON").Return(nil, fmt.Errorf("test error"))
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -442,7 +441,7 @@ func TestClient_SendBatch(t *testing.T) {
 		emo.On("EncryptMessage").Return(nil, fmt.Errorf("test error"))
 
 		h := hasher.NewHasher(make([]byte, 0), 1)
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -464,7 +463,7 @@ func TestClient_SendBatch(t *testing.T) {
 
 		h := hasher.NewHasher([]byte("test"), 0)
 		h.Close()
-		c := ClientHTTP{
+		c := HTTP{
 			gp:        cmo,
 			encrypter: emo,
 			h:         h,
@@ -476,9 +475,9 @@ func TestClient_SendBatch(t *testing.T) {
 	})
 }
 
-func TestNewClientHTTP(t *testing.T) {
+func TestNewHTTP(t *testing.T) {
 	t.Run("positive test", func(t *testing.T) {
-		c, err := NewClientHTTP(parameters.AgentParameters{
+		c, err := NewHTTP(parameters.AgentParameters{
 			CryptoKeyPath: "./testdata/test_public",
 			HashKey:       "",
 			RateLimit:     1,
@@ -491,7 +490,7 @@ func TestNewClientHTTP(t *testing.T) {
 	})
 
 	t.Run("key path error test", func(t *testing.T) {
-		_, err := NewClientHTTP(parameters.AgentParameters{
+		_, err := NewHTTP(parameters.AgentParameters{
 			CryptoKeyPath: "",
 			HashKey:       "",
 			RateLimit:     1,

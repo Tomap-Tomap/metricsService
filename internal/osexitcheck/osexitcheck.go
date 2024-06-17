@@ -7,6 +7,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// OSExitAnalyzer is analyzer for verification os.Exit
 var OSExitAnalyzer = &analysis.Analyzer{
 	Name: "osexitcheck",
 	Doc:  "check for call os.Exit",

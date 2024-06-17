@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -26,6 +25,7 @@ type counters struct {
 	sync.RWMutex
 }
 
+// MemStorage it's in-memory storage repository
 type MemStorage struct {
 	producer      *file.Producer
 	Gauges        gauges   `json:"gauges"`
@@ -33,12 +33,12 @@ type MemStorage struct {
 	storeInterval uint
 }
 
+// NewMemStorage allocates new MemStorage with parameters
 func NewMemStorage(ctx context.Context, p parameters.ServerParameters) (*MemStorage, error) {
 	ms := MemStorage{}
 
 	if p.FileStoragePath != "" {
 		producer, err := file.NewProducer(p.FileStoragePath)
-
 		if err != nil {
 			return nil, fmt.Errorf("create file producer: %w", err)
 		}
@@ -52,11 +52,9 @@ func NewMemStorage(ctx context.Context, p parameters.ServerParameters) (*MemStor
 
 	if p.Restore && p.FileStoragePath != "" {
 		consumer, err := file.NewConsumer(p.FileStoragePath)
-
 		if err != nil {
 			return nil, fmt.Errorf("initializing new consumer: %w", err)
 		}
-		defer consumer.Close()
 
 		m := &models.Metrics{}
 
@@ -65,18 +63,24 @@ func NewMemStorage(ctx context.Context, p parameters.ServerParameters) (*MemStor
 				return nil, fmt.Errorf("read from file for storage: %w", err)
 			}
 
-			if m.MType == "counter" {
+			if m.MType == models.TypeCounter {
 				ms.Counters.Data[m.ID] = Counter(*m.Delta)
 				continue
 			}
 			_, err := ms.UpdateByMetrics(context.Background(), *m)
-
 			if err != nil {
-				return nil, fmt.Errorf("read from file for storage: %w", err)
+				return nil, fmt.Errorf("update metrics from file: %w", err)
 			}
 		}
+		err = consumer.Close()
+		if err != nil {
+			return nil, fmt.Errorf("close consumer: %w", err)
+		}
 
-		ms.producer.ClearFile()
+		err = ms.producer.ClearFile()
+		if err != nil {
+			return nil, fmt.Errorf("clear file of producer: %w", err)
+		}
 	}
 
 	if p.StoreInterval != 0 {
@@ -86,8 +90,9 @@ func NewMemStorage(ctx context.Context, p parameters.ServerParameters) (*MemStor
 	return &ms, nil
 }
 
-func (ms *MemStorage) Close() {
-	ms.producer.Close()
+// Close closes file producer in MemStorage
+func (ms *MemStorage) Close() error {
+	return ms.producer.Close()
 }
 
 func (ms *MemStorage) runDumping(ctx context.Context) {
@@ -110,75 +115,84 @@ func (ms *MemStorage) runDumping(ctx context.Context) {
 }
 
 func (ms *MemStorage) dumpStorage() error {
-	allGauges, _ := ms.GetAllGauge(context.Background())
+	ms.Gauges.RLock()
+	ms.Counters.RLock()
+	defer ms.Gauges.RUnlock()
+	defer ms.Counters.RUnlock()
+	allGauges := maps.Clone(ms.Gauges.Data)
 	for idx, val := range allGauges {
 		m := models.NewMetricsForGauge(idx, float64(val))
 		err := ms.producer.WriteInFile(m)
-
 		if err != nil {
-			return fmt.Errorf("write in file: %w", err)
+			return fmt.Errorf("write gauges in file: %w", err)
 		}
 	}
 
-	allCouters, _ := ms.GetAllCounter(context.Background())
+	allCouters := maps.Clone(ms.Counters.Data)
 	for idx, val := range allCouters {
 		m := models.NewMetricsForCounter(idx, int64(val))
 		err := ms.producer.WriteInFile(m)
-
 		if err != nil {
-			return fmt.Errorf("write in file: %w", err)
+			return fmt.Errorf("write counters in file: %w", err)
 		}
 	}
 	return nil
 }
 
-func (ms *MemStorage) UpdateByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
+// UpdateByMetrics updates metrics values by model
+func (ms *MemStorage) UpdateByMetrics(_ context.Context, m models.Metrics) (*models.Metrics, error) {
 	switch m.MType {
-	case "counter":
+	case models.TypeCounter:
 		return ms.updateCounterByMetrics(m.ID, (*Counter)(m.Delta))
-	case "gauge":
+	case models.TypeGauge:
 		return ms.updateGaugeByMetrics(m.ID, (*Gauge)(m.Value))
 	default:
-		return nil, fmt.Errorf("unknown type %s", m.MType)
+		return nil, ErrUnknownType
 	}
 }
 
 func (ms *MemStorage) updateCounterByMetrics(id string, delta *Counter) (*models.Metrics, error) {
 	if delta == nil {
-		return nil, fmt.Errorf("delta is empty")
+		return nil, ErrEmptyDelta
 	}
 
-	newDelta := int64(ms.addCounter(*delta, id))
+	newDelta, err := ms.addCounter(*delta, id)
+	if err != nil {
+		return nil, fmt.Errorf("add counter: %w", err)
+	}
 
-	return models.NewMetricsForCounter(id, newDelta), nil
+	return models.NewMetricsForCounter(id, int64(newDelta)), nil
 }
 
 func (ms *MemStorage) updateGaugeByMetrics(id string, value *Gauge) (*models.Metrics, error) {
 	if value == nil {
-		return nil, fmt.Errorf("value is empty")
+		return nil, ErrEmptyValue
 	}
 
-	newValue := float64(ms.setGauge(*value, id))
+	newValue, err := ms.setGauge(*value, id)
+	if err != nil {
+		return nil, fmt.Errorf("set gauge: %w", err)
+	}
 
-	return models.NewMetricsForGauge(id, newValue), nil
+	return models.NewMetricsForGauge(id, float64(newValue)), nil
 }
 
-func (ms *MemStorage) ValueByMetrics(ctx context.Context, m models.Metrics) (*models.Metrics, error) {
+// ValueByMetrics returns value of metrics by name and type
+func (ms *MemStorage) ValueByMetrics(_ context.Context, m models.Metrics) (*models.Metrics, error) {
 	switch m.MType {
-	case "counter":
+	case models.TypeCounter:
 		return ms.valueCounterByMetrics(m.ID)
-	case "gauge":
+	case models.TypeGauge:
 		return ms.valueGaugeByMetrics(m.ID)
 	default:
-		return nil, fmt.Errorf("unknown type %s", m.MType)
+		return nil, ErrUnknownType
 	}
 }
 
 func (ms *MemStorage) valueCounterByMetrics(id string) (*models.Metrics, error) {
 	c, err := ms.getCounter(id)
-
 	if err != nil {
-		return nil, fmt.Errorf("get counter %s: %w", id, err)
+		return nil, fmt.Errorf("get counter in mem storage%s: %w", id, err)
 	}
 
 	return models.NewMetricsForCounter(id, int64(c)), nil
@@ -186,15 +200,14 @@ func (ms *MemStorage) valueCounterByMetrics(id string) (*models.Metrics, error) 
 
 func (ms *MemStorage) valueGaugeByMetrics(id string) (*models.Metrics, error) {
 	g, err := ms.getGauge(id)
-
 	if err != nil {
-		return nil, fmt.Errorf("get gauge %s: %w", id, err)
+		return nil, fmt.Errorf("get gauge in mem storage %s: %w", id, err)
 	}
 
 	return models.NewMetricsForGauge(id, float64(g)), nil
 }
 
-func (ms *MemStorage) setGauge(g Gauge, name string) Gauge {
+func (ms *MemStorage) setGauge(g Gauge, name string) (Gauge, error) {
 	ms.Gauges.Lock()
 	defer ms.Gauges.Unlock()
 	ms.Gauges.Data[name] = g
@@ -202,10 +215,13 @@ func (ms *MemStorage) setGauge(g Gauge, name string) Gauge {
 
 	if ms.storeInterval == 0 {
 		m := models.NewMetricsForGauge(name, float64(g))
-		ms.producer.WriteInFile(m)
+		err := ms.producer.WriteInFile(m)
+		if err != nil {
+			return 0, fmt.Errorf("write gauge in file: %w", err)
+		}
 	}
 
-	return retV
+	return retV, nil
 }
 
 func (ms *MemStorage) getGauge(name string) (Gauge, error) {
@@ -214,13 +230,13 @@ func (ms *MemStorage) getGauge(name string) (Gauge, error) {
 	ms.Gauges.RUnlock()
 
 	if !ok {
-		return v, errors.New("value not found")
+		return v, ErrNotFound
 	}
 
 	return v, nil
 }
 
-func (ms *MemStorage) addCounter(c Counter, name string) Counter {
+func (ms *MemStorage) addCounter(c Counter, name string) (Counter, error) {
 	ms.Counters.Lock()
 	defer ms.Counters.Unlock()
 	ms.Counters.Data[name] += c
@@ -228,10 +244,12 @@ func (ms *MemStorage) addCounter(c Counter, name string) Counter {
 
 	if ms.storeInterval == 0 {
 		m := models.NewMetricsForCounter(name, int64(retC))
-		ms.producer.WriteInFile(m)
+		err := ms.producer.WriteInFile(m)
+
+		return 0, fmt.Errorf("write counter in file: %w", err)
 	}
 
-	return retC
+	return retC, nil
 }
 
 func (ms *MemStorage) getCounter(name string) (Counter, error) {
@@ -240,42 +258,46 @@ func (ms *MemStorage) getCounter(name string) (Counter, error) {
 	ms.Counters.RUnlock()
 
 	if !ok {
-		return v, errors.New("value not found")
+		return v, ErrNotFound
 	}
 
 	return v, nil
 }
 
-func (ms *MemStorage) GetAllGauge(ctx context.Context) (retMap map[string]Gauge, err error) {
+// GetAll returns all data of metrics from mem storage
+func (ms *MemStorage) GetAll(context.Context) (retMap map[string]fmt.Stringer, err error) {
 	ms.Gauges.RLock()
-	retMap = maps.Clone(ms.Gauges.Data)
-	ms.Gauges.RUnlock()
-	return
-}
-
-func (ms *MemStorage) GetAllCounter(ctx context.Context) (retMap map[string]Counter, err error) {
 	ms.Counters.RLock()
-	retMap = maps.Clone(ms.Counters.Data)
-	ms.Counters.RUnlock()
+	defer ms.Gauges.RUnlock()
+	defer ms.Counters.RUnlock()
+	retMap = make(map[string]fmt.Stringer)
+	for k, v := range ms.Gauges.Data {
+		retMap[k] = v
+	}
+
+	for k, v := range ms.Counters.Data {
+		retMap[k] = v
+	}
+
 	return
 }
 
-func (ms *MemStorage) PingDB(ctx context.Context) error {
+// PingDB returns error "for this storage type database is not supported"
+func (ms *MemStorage) PingDB(context.Context) error {
 	return fmt.Errorf("for this storage type database is not supported")
 }
 
-func (ms *MemStorage) Updates(ctx context.Context, metrics []models.Metrics) error {
+// Updates updates metrics on memstorage
+func (ms *MemStorage) Updates(_ context.Context, metrics []models.Metrics) error {
 	for _, val := range metrics {
 		switch val.MType {
-		case "gauge":
+		case models.TypeGauge:
 			_, err := ms.updateGaugeByMetrics(val.ID, (*Gauge)(val.Value))
-
 			if err != nil {
 				return err
 			}
-		case "counter":
+		case models.TypeCounter:
 			_, err := ms.updateCounterByMetrics(val.ID, (*Counter)(val.Delta))
-
 			if err != nil {
 				return err
 			}

@@ -15,7 +15,7 @@ func TestNewClient(t *testing.T) {
 			ListenAddr: ":0",
 			UseGRPC:    true,
 		}
-		gc, err := NewClientGRPC(p)
+		gc, err := NewGRPC(p)
 		require.NoError(t, err)
 
 		c, err := NewClient(p)
@@ -31,7 +31,7 @@ func TestNewClient(t *testing.T) {
 			ListenAddr:    ":0",
 			UseGRPC:       false,
 		}
-		gc, err := NewClientHTTP(p)
+		gc, err := NewHTTP(p)
 		require.NoError(t, err)
 
 		c, err := NewClient(p)

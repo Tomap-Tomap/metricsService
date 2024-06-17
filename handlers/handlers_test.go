@@ -345,8 +345,10 @@ func TestServiceHandlers_valueByURL(t *testing.T) {
 
 func TestServiceHandlers_all(t *testing.T) {
 	ms := new(StorageMockedObject)
-	ms.On("GetAllGauge").Return(map[string]storage.Gauge{"test": 1.1}, nil)
-	ms.On("GetAllCounter").Return(map[string]storage.Counter{"test": 1}, nil)
+	ms.On("GetAll").Return(map[string]fmt.Stringer{
+		"testG": storage.Gauge(1.1),
+		"testC": storage.Counter(1),
+	}, nil)
 
 	dmo := new(DecrypterMockedObject)
 	ipcmo := new(IPCheckerMockedObject)
@@ -372,12 +374,12 @@ func TestServiceHandlers_all(t *testing.T) {
 				<th>value</th>
 			</tr>
 			<tr>
-				<td>test</td>
+				<td>testC</td>
 				<td>1</td>
 			</tr>
 			<tr>
-				<td>test</td>
-				<td>1.1</td>
+				<td>testG</td>
+				<td>1.100000</td>
 			</tr>
 		</table>
 	</body>
@@ -430,29 +432,7 @@ func TestServiceHandlers_all(t *testing.T) {
 
 	t.Run("error get all counter", func(t *testing.T) {
 		ms := new(StorageMockedObject)
-		ms.On("GetAllCounter").Return(nil, fmt.Errorf("test error"))
-
-		dmo := new(DecrypterMockedObject)
-		ipcmo := new(IPCheckerMockedObject)
-		sh := NewServiceHandlers(ms)
-		h := hasher.NewHasher(make([]byte, 0), 1)
-		r := ServiceRouter(compresses.NewGzipPool(1), h, sh, dmo, ipcmo)
-
-		srv := httptest.NewServer(r)
-		defer srv.Close()
-
-		res := testRequest(t, srv, http.MethodGet, "/", "")
-
-		require.Equal(t, 500, res.StatusCode())
-		require.Equal(t, "test error\n", string(res.Body()))
-
-		ms.AssertExpectations(t)
-	})
-
-	t.Run("error get all gauge", func(t *testing.T) {
-		ms := new(StorageMockedObject)
-		ms.On("GetAllCounter").Return(map[string]storage.Counter{"test": 1}, nil)
-		ms.On("GetAllGauge").Return(nil, fmt.Errorf("test error"))
+		ms.On("GetAll").Return(nil, fmt.Errorf("test error"))
 
 		dmo := new(DecrypterMockedObject)
 		ipcmo := new(IPCheckerMockedObject)

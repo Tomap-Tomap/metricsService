@@ -285,7 +285,8 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
-				producer: producer,
+				producer:      producer,
+				storeInterval: 1,
 			}
 			got, err := ms.UpdateByMetrics(context.Background(), *tt.args.m)
 			if tt.wantErr {
@@ -293,6 +294,7 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 				return
 			}
 
+			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -432,7 +434,8 @@ func TestMemStorage_updateCounterByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
-				producer: producer,
+				producer:      producer,
+				storeInterval: 1,
 			}
 			got, err := ms.updateCounterByMetrics(tt.args.id, tt.args.delta)
 			if tt.wantErr {
@@ -454,7 +457,7 @@ func TestMemStorage_updateGaugeByMetrics(t *testing.T) {
 	defer producer.Close()
 	var (
 		testGauge1 Gauge = 1.1
-		testGauge2 Gauge = 0
+		testGauge2 Gauge
 	)
 	type fields struct {
 		Gauges   map[string]Gauge
@@ -618,72 +621,6 @@ func TestMemStorage_valueGaugeByMetrics(t *testing.T) {
 	}
 }
 
-func TestMemStorage_GetAllGauge(t *testing.T) {
-	type fields struct {
-		Gauges   map[string]Gauge
-		Counters map[string]Counter
-	}
-	tests := []struct {
-		name       string
-		fields     fields
-		wantRetMap map[string]Gauge
-	}{
-		{
-			name:       "get all Gauges",
-			fields:     fields{Gauges: map[string]Gauge{"test1": 1, "test2": 2, "test3": 3}},
-			wantRetMap: map[string]Gauge{"test1": 1, "test2": 2, "test3": 3},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ms := &MemStorage{
-				Gauges: gauges{
-					Data: tt.fields.Gauges,
-				},
-				Counters: counters{
-					Data: tt.fields.Counters,
-				},
-				producer: &file.Producer{},
-			}
-			gotRetMap, _ := ms.GetAllGauge(context.Background())
-			assert.Equal(t, tt.wantRetMap, gotRetMap)
-		})
-	}
-}
-
-func TestMemStorage_GetAllCounter(t *testing.T) {
-	type fields struct {
-		Gauges   map[string]Gauge
-		Counters map[string]Counter
-	}
-	tests := []struct {
-		name       string
-		fields     fields
-		wantRetMap map[string]Counter
-	}{
-		{
-			name:       "get all caounters",
-			fields:     fields{Counters: map[string]Counter{"test1": 1, "test2": 2, "test3": 3}},
-			wantRetMap: map[string]Counter{"test1": 1, "test2": 2, "test3": 3},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ms := &MemStorage{
-				Gauges: gauges{
-					Data: tt.fields.Gauges,
-				},
-				Counters: counters{
-					Data: tt.fields.Counters,
-				},
-				producer: &file.Producer{},
-			}
-			gotRetMap, _ := ms.GetAllCounter(context.Background())
-			assert.Equal(t, tt.wantRetMap, gotRetMap)
-		})
-	}
-}
-
 func TestNewMemStorage(t *testing.T) {
 	t.Run("positive test", func(t *testing.T) {
 		defer os.Remove("./test")
@@ -801,7 +738,7 @@ func TestMemStorage_dumpStorage(t *testing.T) {
 		require.NoError(t, err)
 		producer.Close()
 
-		file, err := os.OpenFile(pathToTest, os.O_RDONLY|os.O_CREATE, 0666)
+		file, err := os.OpenFile(pathToTest, os.O_RDONLY|os.O_CREATE, 0o666)
 		require.NoError(t, err)
 
 		r := bufio.NewReader(file)

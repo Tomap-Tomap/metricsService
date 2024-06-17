@@ -20,7 +20,6 @@ var Log *zap.Logger = zap.NewNop()
 // Initialize do initialize log variable.
 func Initialize(level string, outputPath string) error {
 	lvl, err := zap.ParseAtomicLevel(level)
-
 	if err != nil {
 		return fmt.Errorf("parse level %s: %w", level, err)
 	}
@@ -29,7 +28,6 @@ func Initialize(level string, outputPath string) error {
 	cfg.Level = lvl
 	cfg.OutputPaths = []string{outputPath}
 	zl, err := cfg.Build()
-
 	if err != nil {
 		return fmt.Errorf("build logger: %w", err)
 	}
@@ -77,7 +75,6 @@ func RequestLogger(h http.Handler) http.Handler {
 
 		var buf bytes.Buffer
 		_, err := buf.ReadFrom(r.Body)
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -112,6 +109,7 @@ func RequestLogger(h http.Handler) http.Handler {
 	return http.HandlerFunc(logFn)
 }
 
+// InterceptorLogger this is an interceptor for logging a request
 func InterceptorLogger(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 	start := time.Now()
 

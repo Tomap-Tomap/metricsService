@@ -19,17 +19,23 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	headerHashSHA256 = "HashSHA256"
+)
+
 // Hasher It's structure witch defines methods for hashing data.
 type Hasher struct {
 	hasherPool chan hash.Hash
 	key        []byte
 }
 
+// NewHasher create Hasher
 func NewHasher(key []byte, rateLimit uint) *Hasher {
 	hp := make(chan hash.Hash, rateLimit)
 	return &Hasher{hp, key}
 }
 
+// Close closes Hasher
 func (h *Hasher) Close() {
 	close(h.hasherPool)
 }
@@ -42,25 +48,24 @@ func (h *Hasher) HashingRequest(req *resty.Request, body []byte) error {
 	}
 
 	hash, err := h.getHash()
-
 	if err != nil {
 		return fmt.Errorf("get hash: %w", err)
 	}
 
 	defer h.putHash(hash)
 	hash.Write(body)
-	req.SetHeader("HashSHA256", hex.EncodeToString(hash.Sum(nil)))
+	req.SetHeader(headerHashSHA256, hex.EncodeToString(hash.Sum(nil)))
 
 	return nil
 }
 
+// InterceptorAddHashMD an interceptor that adds HashSHA256 to the header
 func (h *Hasher) InterceptorAddHashMD(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	if len(h.key) == 0 {
 		return invoker(ctx, method, req, reply, cc, opts...)
 	}
 
 	hash, err := h.getHash()
-
 	if err != nil {
 		return fmt.Errorf("get hash: %w", err)
 	}
@@ -70,7 +75,7 @@ func (h *Hasher) InterceptorAddHashMD(ctx context.Context, method string, req, r
 
 	ctx = metadata.AppendToOutgoingContext(
 		ctx,
-		"HashSHA256", hex.EncodeToString(hash.Sum(nil)),
+		headerHashSHA256, hex.EncodeToString(hash.Sum(nil)),
 	)
 
 	return invoker(ctx, method, req, reply, cc, opts...)
@@ -80,7 +85,7 @@ func (h *Hasher) InterceptorAddHashMD(ctx context.Context, method string, req, r
 // Handle checks the Hash SHA256 request header for compliance with the specified key.
 func (h *Hasher) RequestHash(handler http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
-		hashHeader := r.Header.Get("HashSHA256")
+		hashHeader := r.Header.Get(headerHashSHA256)
 
 		if len(h.key) == 0 || hashHeader == "" {
 			handler.ServeHTTP(w, r)
@@ -89,7 +94,6 @@ func (h *Hasher) RequestHash(handler http.Handler) http.Handler {
 
 		var buf bytes.Buffer
 		_, err := buf.ReadFrom(r.Body)
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -97,7 +101,6 @@ func (h *Hasher) RequestHash(handler http.Handler) http.Handler {
 
 		r.Body = io.NopCloser(&buf)
 		hash, err := h.getHash()
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -108,7 +111,6 @@ func (h *Hasher) RequestHash(handler http.Handler) http.Handler {
 		hash.Write(buf.Bytes())
 		dst := hash.Sum(nil)
 		hh, err := hex.DecodeString(hashHeader)
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -131,6 +133,7 @@ func (h *Hasher) RequestHash(handler http.Handler) http.Handler {
 	return http.HandlerFunc(logFn)
 }
 
+// InterceptorCheckHash the interceptor for checking the HashSHA256 header
 func (h *Hasher) InterceptorCheckHash(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 	if len(h.key) == 0 {
 		resp, err = handler(ctx, req)
@@ -144,7 +147,7 @@ func (h *Hasher) InterceptorCheckHash(ctx context.Context, req any, info *grpc.U
 		return
 	}
 
-	hashMD := md.Get("HashSHA256")
+	hashMD := md.Get(headerHashSHA256)
 
 	if len(hashMD) == 0 {
 		resp, err = handler(ctx, req)
@@ -159,7 +162,6 @@ func (h *Hasher) InterceptorCheckHash(ctx context.Context, req any, info *grpc.U
 	}
 
 	hash, err := h.getHash()
-
 	if err != nil {
 		err = status.Error(codes.Internal, err.Error())
 		return
@@ -170,7 +172,6 @@ func (h *Hasher) InterceptorCheckHash(ctx context.Context, req any, info *grpc.U
 	hash.Write([]byte(info.FullMethod))
 	dst := hash.Sum(nil)
 	hh, err := hex.DecodeString(hashS)
-
 	if err != nil {
 		err = status.Error(codes.Internal, err.Error())
 		return
@@ -217,7 +218,6 @@ type hashingResponseWriter struct {
 
 func (r *hashingResponseWriter) Write(b []byte) (int, error) {
 	h, err := r.hasher.getHash()
-
 	if err != nil {
 		return 0, fmt.Errorf("get hash: %w", err)
 	}
@@ -225,7 +225,7 @@ func (r *hashingResponseWriter) Write(b []byte) (int, error) {
 	h.Write(b)
 	dst := h.Sum(nil)
 
-	r.ResponseWriter.Header().Add("HashSHA256", hex.EncodeToString(dst))
+	r.ResponseWriter.Header().Add(headerHashSHA256, hex.EncodeToString(dst))
 
 	size, err := r.ResponseWriter.Write(b)
 	r.bytes += size

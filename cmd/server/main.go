@@ -3,14 +3,13 @@
 package main
 
 import (
-	"cmp"
 	"context"
-	"fmt"
 	"os/signal"
 	"syscall"
 
 	"go.uber.org/zap"
 
+	"github.com/DarkOmap/metricsService/internal/build"
 	"github.com/DarkOmap/metricsService/internal/compresses"
 	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/ip"
@@ -47,7 +46,7 @@ var (
 //	@Tag.description	"Query group for metrics data retrieval"
 
 func main() {
-	displayBuild(buildVersion, buildDate, buildCommit)
+	build.DisplayBuild(buildVersion, buildDate, buildCommit)
 	p := parameters.ParseFlagsServer()
 
 	if err := logger.Initialize("INFO", "stderr"); err != nil {
@@ -59,14 +58,18 @@ func main() {
 
 	logger.Log.Info("Create repository")
 	r, err := server.NewRepository(ctx, p)
-
 	if err != nil {
 		logger.Log.Fatal("Create repository", zap.Error(err))
 	}
-	defer r.Close()
+
+	defer func() {
+		err := r.Close()
+
+		logger.Log.Fatal("Close repository", zap.Error(err))
+	}()
 
 	logger.Log.Info("Create IP checker")
-	ipc := ip.NewIPChecker(p.TrustedSubnet)
+	ipc := ip.NewChecker(p.TrustedSubnet)
 
 	logger.Log.Info("Create hasher pool")
 	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
@@ -76,7 +79,7 @@ func main() {
 	gzipPool := compresses.NewGzipPool(p.RateLimit)
 	defer gzipPool.Close()
 
-	opts := make([]server.ServerOptionFunc, 0, 2)
+	opts := make([]server.OptionFunc, 0, 2)
 
 	if p.FlagRunAddr != "" {
 		opts = append(opts, server.WithHTTP(r, ipc, h, gzipPool, p))
@@ -88,7 +91,6 @@ func main() {
 
 	logger.Log.Info("Create server")
 	server, err := server.NewServer(opts...)
-
 	if err != nil {
 		logger.Log.Fatal("Create server", zap.Error(err))
 	}
@@ -96,16 +98,4 @@ func main() {
 	if err := server.Run(ctx); err != nil {
 		logger.Log.Fatal("Problem with working server", zap.Error(err))
 	}
-}
-
-func displayBuild(version, date, commit string) (string, string, string) {
-	version = cmp.Or(version, "N/A")
-	date = cmp.Or(date, "N/A")
-	commit = cmp.Or(commit, "N/A")
-
-	fmt.Printf("Build version: %s\n", version)
-	fmt.Printf("Build date: %s\n", date)
-	fmt.Printf("Build commit: %s\n", commit)
-
-	return version, date, commit
 }

@@ -3,15 +3,14 @@
 package main
 
 import (
-	"cmp"
 	"context"
-	"fmt"
 	"os/signal"
 	"syscall"
 
 	_ "net/http/pprof"
 
 	"github.com/DarkOmap/metricsService/internal/agent"
+	"github.com/DarkOmap/metricsService/internal/build"
 	"github.com/DarkOmap/metricsService/internal/client"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/memstats"
@@ -26,7 +25,7 @@ var (
 )
 
 func main() {
-	displayBuild(buildVersion, buildDate, buildCommit)
+	build.DisplayBuild(buildVersion, buildDate, buildCommit)
 	p := parameters.ParseFlagsAgent()
 
 	if err := logger.Initialize("INFO", "stderr"); err != nil {
@@ -35,15 +34,19 @@ func main() {
 
 	logger.Log.Info("Create client")
 	c, err := client.NewClient(p)
-
 	if err != nil {
 		logger.Log.Fatal("Create client", zap.Error(err))
 	}
-	defer c.Close()
+
+	defer func() {
+		err := c.Close()
+		if err != nil {
+			logger.Log.Fatal("Close client", zap.Error(err))
+		}
+	}()
 
 	logger.Log.Info("Init mem stats")
-	ms, err := memstats.NewMemStatsForServer()
-
+	ms, err := memstats.NewForServer()
 	if err != nil {
 		logger.Log.Fatal("Create mem stats", zap.Error(err))
 	}
@@ -60,16 +63,4 @@ func main() {
 	if err != nil {
 		logger.Log.Fatal("Run agent", zap.Error(err))
 	}
-}
-
-func displayBuild(version, date, commit string) (string, string, string) {
-	version = cmp.Or(version, "N/A")
-	date = cmp.Or(date, "N/A")
-	commit = cmp.Or(commit, "N/A")
-
-	fmt.Printf("Build version: %s\n", version)
-	fmt.Printf("Build date: %s\n", date)
-	fmt.Printf("Build commit: %s\n", commit)
-
-	return version, date, commit
 }

@@ -20,7 +20,7 @@ type MetricsServerMockedObject struct {
 	mock.Mock
 }
 
-func (ms *MetricsServerMockedObject) Update(ctx context.Context, req *proto.UpdateRequest) (*proto.UpdateResponse, error) {
+func (ms *MetricsServerMockedObject) Update(context.Context, *proto.UpdateRequest) (*proto.UpdateResponse, error) {
 	args := ms.Called()
 
 	if args.Get(0) == nil {
@@ -30,7 +30,7 @@ func (ms *MetricsServerMockedObject) Update(ctx context.Context, req *proto.Upda
 	return args.Get(0).(*proto.UpdateResponse), args.Error(1)
 }
 
-func (ms *MetricsServerMockedObject) Updates(ctx context.Context, req *proto.UpdatesRequest) (*empty.Empty, error) {
+func (ms *MetricsServerMockedObject) Updates(context.Context, *proto.UpdatesRequest) (*empty.Empty, error) {
 	args := ms.Called()
 
 	if args.Get(0) == nil {
@@ -68,7 +68,7 @@ func TestGRPCClient_SendGauge(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		c := ClientGRPC{
+		c := GRPC{
 			conn:   conn,
 			client: proto.NewMetricsClient(conn),
 		}
@@ -103,7 +103,7 @@ func TestGRPCClient_SendGauge(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		c := ClientGRPC{
+		c := GRPC{
 			conn:   conn,
 			client: proto.NewMetricsClient(conn),
 		}
@@ -140,7 +140,7 @@ func TestGRPCClient_SendCounter(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		c := ClientGRPC{
+		c := GRPC{
 			conn:   conn,
 			client: proto.NewMetricsClient(conn),
 		}
@@ -175,7 +175,7 @@ func TestGRPCClient_SendCounter(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		c := ClientGRPC{
+		c := GRPC{
 			conn:   conn,
 			client: proto.NewMetricsClient(conn),
 		}
@@ -212,7 +212,7 @@ func TestGRPCClient_SendBatch(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		c := ClientGRPC{
+		c := GRPC{
 			conn:   conn,
 			client: proto.NewMetricsClient(conn),
 		}
@@ -250,7 +250,7 @@ func TestGRPCClient_SendBatch(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		c := ClientGRPC{
+		c := GRPC{
 			conn:   conn,
 			client: proto.NewMetricsClient(conn),
 		}
@@ -262,9 +262,9 @@ func TestGRPCClient_SendBatch(t *testing.T) {
 	})
 }
 
-func TestNewClientGRPC(t *testing.T) {
+func TestNewGRPC(t *testing.T) {
 	t.Run("positive test", func(t *testing.T) {
-		c, err := NewClientGRPC(parameters.AgentParameters{
+		c, err := NewGRPC(parameters.AgentParameters{
 			HashKey:    "",
 			RateLimit:  1,
 			ListenAddr: ":0",
