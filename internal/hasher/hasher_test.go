@@ -1,15 +1,22 @@
 package hasher
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/interop"
+	testgrpc "google.golang.org/grpc/interop/grpc_testing"
+	"google.golang.org/grpc/metadata"
 )
 
 func TestHasher_HashingRequest(t *testing.T) {
@@ -173,6 +180,27 @@ func TestHasher_RequestHash(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, resp.StatusCode(), 500)
 	})
+
+	t.Run("error decode", func(t *testing.T) {
+		body := []byte("test")
+		h := NewHasher([]byte("test"), 1)
+		webhook := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(body)
+		})
+		handler := h.RequestHash(webhook)
+
+		srv := httptest.NewServer(handler)
+		defer srv.Close()
+
+		c := resty.New()
+
+		req := c.R().SetBody(body).SetHeader("HashSHA256", "123")
+
+		resp, err := req.Post(srv.URL)
+
+		require.NoError(t, err)
+		require.Equal(t, resp.StatusCode(), 500)
+	})
 }
 
 func BenchmarkHashingRequest(b *testing.B) {
@@ -206,4 +234,283 @@ func BenchmarkRequestHash(b *testing.B) {
 	for i := 1; i < b.N; i++ {
 		req.Post(srv.URL)
 	}
+}
+
+func TestHasher_InterceptorAddHashMD(t *testing.T) {
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	s := grpc.NewServer()
+
+	testgrpc.RegisterTestServiceServer(
+		s,
+		interop.NewTestServer(),
+	)
+
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			require.FailNow(t, err.Error())
+		}
+	}()
+
+	defer s.Stop()
+	t.Run("positive test", func(t *testing.T) {
+		key := []byte("test")
+		h := NewHasher(key, 1)
+
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithUnaryInterceptor(h.InterceptorAddHashMD),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+		ctx := context.Background()
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("empty hash", func(t *testing.T) {
+		h := NewHasher(make([]byte, 0), 1)
+
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithUnaryInterceptor(h.InterceptorAddHashMD),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+		ctx := context.Background()
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("closed pool", func(t *testing.T) {
+		key := []byte("test")
+		h := NewHasher(key, 0)
+		h.Close()
+
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithUnaryInterceptor(h.InterceptorAddHashMD),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+		ctx := context.Background()
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.Error(t, err)
+	})
+}
+
+func TestHasher_InterceptorCheckHash(t *testing.T) {
+	t.Run("empty hash", func(t *testing.T) {
+		h := NewHasher(make([]byte, 0), 1)
+
+		lis, err := net.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+
+		s := grpc.NewServer(grpc.UnaryInterceptor(h.InterceptorCheckHash))
+
+		testgrpc.RegisterTestServiceServer(
+			s,
+			interop.NewTestServer(),
+		)
+
+		go func() {
+			if err := s.Serve(lis); err != nil {
+				require.FailNow(t, err.Error())
+			}
+		}()
+
+		defer s.Stop()
+
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+		ctx := context.Background()
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("closed pool", func(t *testing.T) {
+		key := []byte("test")
+		h := NewHasher(key, 1)
+
+		lis, err := net.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+
+		s := grpc.NewServer(grpc.UnaryInterceptor(h.InterceptorCheckHash))
+
+		testgrpc.RegisterTestServiceServer(
+			s,
+			interop.NewTestServer(),
+		)
+
+		go func() {
+			if err := s.Serve(lis); err != nil {
+				require.FailNow(t, err.Error())
+			}
+		}()
+
+		defer s.Stop()
+
+		h.Close()
+
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+		ctx := metadata.AppendToOutgoingContext(
+			context.Background(),
+			"HashSHA256", "123",
+		)
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.Error(t, err)
+	})
+
+	key := []byte("test")
+	h := NewHasher(key, 1)
+
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	s := grpc.NewServer(grpc.UnaryInterceptor(h.InterceptorCheckHash))
+
+	testgrpc.RegisterTestServiceServer(
+		s,
+		interop.NewTestServer(),
+	)
+
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			require.FailNow(t, err.Error())
+		}
+	}()
+
+	defer s.Stop()
+
+	t.Run("empty md HashSHA256", func(t *testing.T) {
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+		ctx := context.Background()
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("empty HashSHA256", func(t *testing.T) {
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+
+		ctx := metadata.AppendToOutgoingContext(
+			context.Background(),
+			"HashSHA256", "",
+		)
+
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.NoError(t, err)
+	})
+
+	t.Run("error decode", func(t *testing.T) {
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+
+		ctx := metadata.AppendToOutgoingContext(
+			context.Background(),
+			"HashSHA256", "123",
+		)
+
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.Error(t, err)
+	})
+
+	t.Run("not equal hash", func(t *testing.T) {
+		key2 := []byte("test2")
+		h2 := NewHasher(key2, 1)
+
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithUnaryInterceptor(h2.InterceptorAddHashMD),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+
+		ctx := context.Background()
+
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.Error(t, err)
+	})
+
+	t.Run("positive test", func(t *testing.T) {
+		conn, err := grpc.NewClient(
+			lis.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithUnaryInterceptor(h.InterceptorAddHashMD),
+		)
+
+		require.NoError(t, err)
+		defer conn.Close()
+
+		client := testgrpc.NewTestServiceClient(conn)
+
+		ctx := context.Background()
+
+		_, err = client.EmptyCall(ctx, &testgrpc.Empty{})
+
+		require.NoError(t, err)
+	})
 }

@@ -3,26 +3,21 @@
 package main
 
 import (
-	"cmp"
 	"context"
-	"fmt"
-	"net/http"
 	"os/signal"
 	"syscall"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 
-	"github.com/DarkOmap/metricsService/handlers"
-	"github.com/DarkOmap/metricsService/internal/certmanager"
+	"github.com/DarkOmap/metricsService/internal/build"
 	"github.com/DarkOmap/metricsService/internal/compresses"
-	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/hasher"
+	"github.com/DarkOmap/metricsService/internal/ip"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/parameters"
-	"github.com/DarkOmap/metricsService/internal/storage"
+	"github.com/DarkOmap/metricsService/internal/server"
 	_ "github.com/DarkOmap/metricsService/swagger"
+	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 var (
@@ -51,104 +46,56 @@ var (
 //	@Tag.description	"Query group for metrics data retrieval"
 
 func main() {
-	displayBuild(buildVersion, buildDate, buildCommit)
+	build.DisplayBuild(buildVersion, buildDate, buildCommit)
 	p := parameters.ParseFlagsServer()
 
 	if err := logger.Initialize("INFO", "stderr"); err != nil {
 		panic(err)
 	}
 
-	logger.Log.Info("Create file producer")
-	producer, err := file.NewProducer(p.FileStoragePath)
-	if err != nil {
-		logger.Log.Fatal("Create file producer", zap.Error(err))
-	}
-	defer producer.Close()
-
-	logger.Log.Info("Create decrypt manager")
-	dm, err := certmanager.NewDecryptManager(p.CryptoKeyPath)
-
-	if err != nil {
-		logger.Log.Fatal("Create decrypt manager", zap.Error(err))
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer cancel()
-	eg, egCtx := errgroup.WithContext(ctx)
 
-	var ms handlers.Repository
-
-	if p.DataBaseDSN != "" {
-		logger.Log.Info("Create database storage")
-
-		conn, err := pgxpool.New(ctx, p.DataBaseDSN)
-
-		if err != nil {
-			logger.Log.Fatal("Connect to database", zap.Error(err))
-		}
-		defer conn.Close()
-
-		ms, err = storage.NewDBStorage(conn)
-
-		if err != nil {
-			logger.Log.Fatal("Create database storage", zap.Error(err))
-		}
-	} else {
-		logger.Log.Info("Create mem storage")
-		ms, err = storage.NewMemStorage(egCtx, eg, producer, p)
-		if err != nil {
-			logger.Log.Fatal("Create mem storage", zap.Error(err))
-		}
+	logger.Log.Info("Create repository")
+	r, err := server.NewRepository(ctx, p)
+	if err != nil {
+		logger.Log.Fatal("Create repository", zap.Error(err))
 	}
 
-	logger.Log.Info("Create handlers")
-	sh := handlers.NewServiceHandlers(ms)
+	defer func() {
+		err := r.Close()
 
-	logger.Log.Info("Create gzip pool")
-	pool := compresses.NewGzipPool(p.RateLimit)
-	defer pool.Close()
+		logger.Log.Fatal("Close repository", zap.Error(err))
+	}()
+
+	logger.Log.Info("Create IP checker")
+	ipc := ip.NewChecker(p.TrustedSubnet)
 
 	logger.Log.Info("Create hasher pool")
 	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
 	defer h.Close()
 
-	logger.Log.Info("Create routers")
-	r := handlers.ServiceRouter(pool, h, sh, dm)
+	logger.Log.Info("Create gzip pool")
+	gzipPool := compresses.NewGzipPool(p.RateLimit)
+	defer gzipPool.Close()
+
+	opts := make([]server.OptionFunc, 0, 2)
+
+	if p.FlagRunAddr != "" {
+		opts = append(opts, server.WithHTTP(r, ipc, h, gzipPool, p))
+	}
+
+	if p.FlagRunGRPCAddr != "" {
+		opts = append(opts, server.WithGRPC(r, ipc, h, p))
+	}
 
 	logger.Log.Info("Create server")
-	httpServer := &http.Server{
-		Addr:    p.FlagRunAddr,
-		Handler: r,
+	server, err := server.NewServer(opts...)
+	if err != nil {
+		logger.Log.Fatal("Create server", zap.Error(err))
 	}
 
-	eg.Go(func() error {
-		logger.Log.Info("Run serve")
-		err := httpServer.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			return err
-		}
-		return nil
-	})
-
-	eg.Go(func() error {
-		<-egCtx.Done()
-		logger.Log.Info("Stop serve")
-		return httpServer.Shutdown(context.Background())
-	})
-
-	if err := eg.Wait(); err != nil {
+	if err := server.Run(ctx); err != nil {
 		logger.Log.Fatal("Problem with working server", zap.Error(err))
 	}
-}
-
-func displayBuild(version, date, commit string) (string, string, string) {
-	version = cmp.Or(version, "N/A")
-	date = cmp.Or(date, "N/A")
-	commit = cmp.Or(commit, "N/A")
-
-	fmt.Printf("Build version: %s\n", version)
-	fmt.Printf("Build date: %s\n", date)
-	fmt.Printf("Build commit: %s\n", commit)
-
-	return version, date, commit
 }

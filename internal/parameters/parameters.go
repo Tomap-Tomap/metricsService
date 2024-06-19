@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 
@@ -21,6 +22,7 @@ type AgentParameters struct {
 	ReportInterval uint   `json:"report_interval"`
 	RateLimit      uint   `json:"rate_limit"`
 	PollInterval   uint   `json:"poll_interval"`
+	UseGRPC        bool   `json:"use_grpc"`
 }
 
 // ParseFlagsAgent return agent's parameters from console or env.
@@ -32,6 +34,7 @@ func ParseFlagsAgent() (p AgentParameters) {
 
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.ListenAddr, "a", "localhost:8080", "address and port to server")
+	f.BoolVar(&p.UseGRPC, "grpc", false, "flag for using grpc client, else use http client")
 	f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to public key")
 	f.StringVar(&p.HashKey, "k", "", "hash key")
 	f.UintVar(&p.ReportInterval, "r", 10, "report interval")
@@ -43,7 +46,10 @@ func ParseFlagsAgent() (p AgentParameters) {
 		f.StringVar(&config, "config", "config.json", "path to agent configuration")
 	}
 
-	f.Parse(os.Args[1:])
+	err := f.Parse(os.Args[1:])
+	if err != nil {
+		logger.Log.Warn("Parse argument", zap.Error(err))
+	}
 
 	if err := parseAgentFromFile(f, &p, config); err != nil {
 		logger.Log.Warn("Config file will not read", zap.Error(err))
@@ -85,6 +91,12 @@ func ParseFlagsAgent() (p AgentParameters) {
 		}
 	}
 
+	if envUG := os.Getenv("USE_GRPC"); envUG != "" {
+		if boolUG, err := strconv.ParseBool(envUG); err == nil {
+			p.UseGRPC = boolUG
+		}
+	}
+
 	return
 }
 
@@ -96,14 +108,12 @@ func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) erro
 	var jsonP AgentParameters
 
 	file, err := os.Open(config)
-
 	if err != nil {
 		return fmt.Errorf("failed open config file: %w", err)
 	}
 
 	jd := json.NewDecoder(file)
 	err = jd.Decode(&jsonP)
-
 	if err != nil {
 		return fmt.Errorf("failed decode config file: %w", err)
 	}
@@ -135,19 +145,48 @@ func parseAgentFromFile(f *flag.FlagSet, p *AgentParameters, config string) erro
 		p.RateLimit = cmp.Or(jsonP.RateLimit, p.RateLimit)
 	}
 
+	useGRPC, _ := strconv.ParseBool(f.Lookup("grpc").DefValue)
+	if p.UseGRPC == useGRPC {
+		p.UseGRPC = cmp.Or(jsonP.UseGRPC, p.UseGRPC)
+	}
+
 	return nil
 }
 
 // ServerParameters contains parameters for server.
 type ServerParameters struct {
-	FlagRunAddr     string `json:"address"`
-	FileStoragePath string `json:"file_storage_path"`
-	CryptoKeyPath   string `json:"crypto_key"`
-	DataBaseDSN     string `json:"database_dsn"`
-	HashKey         string `json:"hash_key"`
-	StoreInterval   uint   `json:"store_interval"`
-	Restore         bool   `json:"restore"`
-	RateLimit       uint   `json:"rate_limit"`
+	FlagRunAddr     string     `json:"address"`
+	FlagRunGRPCAddr string     `json:"grpc_address"`
+	FileStoragePath string     `json:"file_storage_path"`
+	CryptoKeyPath   string     `json:"crypto_key"`
+	DataBaseDSN     string     `json:"database_dsn"`
+	HashKey         string     `json:"hash_key"`
+	StoreInterval   uint       `json:"store_interval"`
+	Restore         bool       `json:"restore"`
+	RateLimit       uint       `json:"rate_limit"`
+	TrustedSubnet   *net.IPNet `json:"trusted_subnet"`
+}
+
+// UnmarshalJSON converts json to a structure
+func (sp *ServerParameters) UnmarshalJSON(data []byte) (err error) {
+	type ServerParametersAlias ServerParameters
+
+	spAlias := struct {
+		*ServerParametersAlias
+		TrustedSubnet string `json:"trusted_subnet"`
+	}{
+		ServerParametersAlias: (*ServerParametersAlias)(sp),
+	}
+
+	err = json.Unmarshal(data, &spAlias)
+	if err != nil {
+		return
+	}
+
+	if spAlias.TrustedSubnet != "" {
+		_, sp.TrustedSubnet, err = net.ParseCIDR(spAlias.TrustedSubnet)
+	}
+	return
 }
 
 // ParseFlagsServer return server's parameters from console or env.
@@ -159,6 +198,7 @@ func ParseFlagsServer() (p ServerParameters) {
 
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&p.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
+	f.StringVar(&p.FlagRunGRPCAddr, "grpc-a", "localhost:3200", "address and port to run grpc server")
 	f.StringVar(&p.HashKey, "k", "", "hash key")
 	f.StringVar(&p.FileStoragePath, "f", "/tmp/metrics-db.json", "path to save storage")
 	f.StringVar(&p.CryptoKeyPath, "crypto-key", "", "path to private key")
@@ -177,7 +217,22 @@ func ParseFlagsServer() (p ServerParameters) {
 		f.StringVar(&config, "config", "config.json", "path to server configuration")
 	}
 
-	f.Parse(os.Args[1:])
+	var trustedSubnet string
+	f.StringVar(&trustedSubnet, "t", "", "trusted subnet")
+
+	err := f.Parse(os.Args[1:])
+	if err != nil {
+		logger.Log.Warn("Parse argument", zap.Error(err))
+	}
+
+	if trustedSubnet != "" {
+		_, ts, err := net.ParseCIDR(trustedSubnet)
+		if err != nil {
+			logger.Log.Warn("Parse CIDR on flags", zap.Error(err))
+		}
+
+		p.TrustedSubnet = ts
+	}
 
 	if err := parseServerFromFile(f, &p, config); err != nil {
 		logger.Log.Warn("Config file will not read", zap.Error(err))
@@ -185,6 +240,10 @@ func ParseFlagsServer() (p ServerParameters) {
 
 	if envAddr := os.Getenv("ADDRESS"); envAddr != "" {
 		p.FlagRunAddr = envAddr
+	}
+
+	if envGRPCAddr := os.Getenv("GRPC_ADDRESS"); envGRPCAddr != "" {
+		p.FlagRunGRPCAddr = envGRPCAddr
 	}
 
 	if envKey := os.Getenv("KEY"); envKey != "" {
@@ -223,6 +282,15 @@ func ParseFlagsServer() (p ServerParameters) {
 		}
 	}
 
+	if envTS := os.Getenv("TRUSTED_SUBNET"); envTS != "" {
+		_, ts, err := net.ParseCIDR(envTS)
+		if err != nil {
+			logger.Log.Warn("Parse CIDR on env", zap.Error(err))
+		}
+
+		p.TrustedSubnet = ts
+	}
+
 	return
 }
 
@@ -234,20 +302,22 @@ func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) er
 	var jsonP ServerParameters
 
 	file, err := os.Open(config)
-
 	if err != nil {
 		return fmt.Errorf("failed open config file: %w", err)
 	}
 
 	jd := json.NewDecoder(file)
 	err = jd.Decode(&jsonP)
-
 	if err != nil {
 		return fmt.Errorf("config file will not read: %w", err)
 	}
 
 	if p.FlagRunAddr == f.Lookup("a").DefValue {
 		p.FlagRunAddr = cmp.Or(jsonP.FlagRunAddr, p.FlagRunAddr)
+	}
+
+	if p.FlagRunGRPCAddr == f.Lookup("grpc-a").DefValue {
+		p.FlagRunGRPCAddr = cmp.Or(jsonP.FlagRunGRPCAddr, p.FlagRunGRPCAddr)
 	}
 
 	if p.FileStoragePath == f.Lookup("f").DefValue {
@@ -279,6 +349,10 @@ func parseServerFromFile(f *flag.FlagSet, p *ServerParameters, config string) er
 	restore, _ := strconv.ParseBool(f.Lookup("r").DefValue)
 	if p.Restore == restore {
 		p.Restore = cmp.Or(jsonP.Restore, p.Restore)
+	}
+
+	if p.TrustedSubnet == nil {
+		p.TrustedSubnet = jsonP.TrustedSubnet
 	}
 
 	return nil

@@ -3,12 +3,15 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 // Log it's singleton variable for working with logs.
@@ -17,7 +20,6 @@ var Log *zap.Logger = zap.NewNop()
 // Initialize do initialize log variable.
 func Initialize(level string, outputPath string) error {
 	lvl, err := zap.ParseAtomicLevel(level)
-
 	if err != nil {
 		return fmt.Errorf("parse level %s: %w", level, err)
 	}
@@ -26,7 +28,6 @@ func Initialize(level string, outputPath string) error {
 	cfg.Level = lvl
 	cfg.OutputPaths = []string{outputPath}
 	zl, err := cfg.Build()
-
 	if err != nil {
 		return fmt.Errorf("build logger: %w", err)
 	}
@@ -74,7 +75,6 @@ func RequestLogger(h http.Handler) http.Handler {
 
 		var buf bytes.Buffer
 		_, err := buf.ReadFrom(r.Body)
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -107,4 +107,33 @@ func RequestLogger(h http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(logFn)
+}
+
+// InterceptorLogger this is an interceptor for logging a request
+func InterceptorLogger(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+	start := time.Now()
+
+	if v, ok := req.(proto.Message); ok {
+		Log.Info("Got incoming grpc request",
+			zap.String("full method", info.FullMethod),
+			zap.Any("body", v),
+		)
+	} else {
+		Log.Warn("Payload is not a google.golang.org/protobuf/proto.Message; programmatic error?",
+			zap.String("full method", info.FullMethod))
+	}
+
+	resp, err = handler(ctx, req)
+
+	if err != nil {
+		Log.Warn("Failed request", zap.Error(err))
+	} else {
+		duration := time.Since(start)
+
+		Log.Info("Sending grpc response",
+			zap.String("duration", duration.String()),
+		)
+	}
+
+	return
 }

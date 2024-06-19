@@ -18,13 +18,13 @@ type ClientMockedObject struct {
 	mock.Mock
 }
 
-func (c *ClientMockedObject) SendBatch(ctx context.Context, batch map[string]float64) error {
+func (c *ClientMockedObject) SendBatch(context.Context, map[string]float64) error {
 	args := c.Called()
 
 	return args.Error(0)
 }
 
-func (c *ClientMockedObject) SendCounter(ctx context.Context, name string, delta int64) error {
+func (c *ClientMockedObject) SendCounter(context.Context, string, int64) error {
 	args := c.Called()
 
 	return args.Error(0)

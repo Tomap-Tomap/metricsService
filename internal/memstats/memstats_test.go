@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMemStatsForServer_GetMap(t *testing.T) {
-	ms, err := NewMemStatsForServer()
+func TestForServer_GetMap(t *testing.T) {
+	ms, err := NewForServer()
 
 	require.NoError(t, err)
 
@@ -55,7 +55,7 @@ func TestMemStatsForServer_GetMap(t *testing.T) {
 }
 
 func BenchmarkReadMemStats(b *testing.B) {
-	ms, _ := NewMemStatsForServer()
+	ms, _ := NewForServer()
 
 	for i := 0; i < b.N; i++ {
 		ms.ReadMemStats()
@@ -63,24 +63,24 @@ func BenchmarkReadMemStats(b *testing.B) {
 }
 
 func BenchmarkGetMap(b *testing.B) {
-	ms, _ := NewMemStatsForServer()
+	ms, _ := NewForServer()
 
 	for i := 0; i < b.N; i++ {
 		ms.GetMap()
 	}
 }
 
-func TestMemStatsForServer_ReadMemStats(t *testing.T) {
+func TestForServer_ReadMemStats(t *testing.T) {
 	t.Run("error read VM", func(t *testing.T) {
 		t.Setenv("HOST_PROC", "./testdata/error_meminfo")
-		_, err := NewMemStatsForServer()
+		_, err := NewForServer()
 
 		require.Error(t, err)
 	})
 
 	t.Run("error read cpu", func(t *testing.T) {
 		t.Setenv("HOST_PROC", "./testdata/")
-		_, err := NewMemStatsForServer()
+		_, err := NewForServer()
 
 		require.Error(t, err)
 	})

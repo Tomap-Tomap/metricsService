@@ -1,19 +1,16 @@
-// Server main package.
-// Server defines handlers for collecting metrics and stores them in the database.
-package main
+package build
 
 import (
 	"testing"
 
-	_ "github.com/DarkOmap/metricsService/swagger"
 	"github.com/stretchr/testify/require"
 )
 
-func Test_displayBuild(t *testing.T) {
+func TestDisplayBuild(t *testing.T) {
 	t.Run("positive test", func(t *testing.T) {
 		wantV, wantD, wantC := "1", "1", "1"
 
-		gotV, gotD, gotC := displayBuild(wantV, wantD, wantC)
+		gotV, gotD, gotC := DisplayBuild(wantV, wantD, wantC)
 
 		require.Equal(t, wantV, gotV)
 		require.Equal(t, wantD, gotD)
@@ -23,7 +20,7 @@ func Test_displayBuild(t *testing.T) {
 	t.Run("test N/A", func(t *testing.T) {
 		wantV, wantD, wantC := "", "", ""
 
-		gotV, gotD, gotC := displayBuild(wantV, wantD, wantC)
+		gotV, gotD, gotC := DisplayBuild(wantV, wantD, wantC)
 
 		require.Equal(t, "N/A", gotV)
 		require.Equal(t, "N/A", gotD)

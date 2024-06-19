@@ -39,7 +39,6 @@ func TestNewProducer(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-
 }
 
 func TestProducer_WriteInFile(t *testing.T) {

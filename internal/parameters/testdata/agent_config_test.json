@@ -1,5 +1,6 @@
 {
     "address": "configAddr",
+    "use_grpc": true,
     "crypto_key": "configCKey",
     "hash_key": "configKey",
     "report_interval": 111,

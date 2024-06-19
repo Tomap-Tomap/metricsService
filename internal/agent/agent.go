@@ -33,11 +33,13 @@ type Agent struct {
 	pollInterval   uint
 }
 
+// NewAgent create agent
 func NewAgent(client Client, ms MemStats, reportInterval, pollInterval uint) *Agent {
-	a := &Agent{reportInterval: reportInterval,
-		pollInterval: pollInterval,
-		client:       client,
-		ms:           ms,
+	a := &Agent{
+		reportInterval: reportInterval,
+		pollInterval:   pollInterval,
+		client:         client,
+		ms:             ms,
 	}
 
 	return a
@@ -85,7 +87,6 @@ func (a *Agent) startReadMemStats(ctx context.Context) error {
 		select {
 		case <-time.After(time.Duration(a.pollInterval) * time.Second):
 			err := a.ms.ReadMemStats()
-
 			if err != nil {
 				return fmt.Errorf("read mem stats: %w", err)
 			}
@@ -102,7 +103,6 @@ func (a *Agent) sendMemStats(ctx context.Context) {
 	msForServer := a.ms.GetMap()
 
 	err := a.client.SendBatch(ctx, msForServer)
-
 	if err != nil {
 		logger.Log.Warn("Send batch", zap.Error(err))
 	}
@@ -110,7 +110,6 @@ func (a *Agent) sendMemStats(ctx context.Context) {
 
 func (a *Agent) sendPollCount(ctx context.Context) {
 	err := a.client.SendCounter(ctx, "PollCount", a.pollCount.Load())
-
 	if err != nil {
 		logger.Log.Warn("Send counter", zap.Error(err))
 	}

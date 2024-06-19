@@ -5,11 +5,19 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 )
+
+const (
+	contentEncodingGZIP = "gzip"
+)
+
+// ErrClosedPoll occurs when the pool is closed
+var ErrClosedPoll = errors.New("pool is closed")
 
 type compressWriter struct {
 	http.ResponseWriter
@@ -38,11 +46,13 @@ func (c *compressReader) Close() error {
 	return c.Reader.Close()
 }
 
+// GzipPool the structure of the data compression pool
 type GzipPool struct {
 	writerPool chan *gzip.Writer
 	readerPool chan *gzip.Reader
 }
 
+// NewGzipPool create GzipPool
 func NewGzipPool(rateLimit uint) *GzipPool {
 	wp := make(chan *gzip.Writer, rateLimit)
 	rp := make(chan *gzip.Reader, rateLimit)
@@ -50,6 +60,7 @@ func NewGzipPool(rateLimit uint) *GzipPool {
 	return &GzipPool{wp, rp}
 }
 
+// Close closes GzipPool
 func (gp *GzipPool) Close() {
 	close(gp.writerPool)
 	close(gp.readerPool)
@@ -58,7 +69,6 @@ func (gp *GzipPool) Close() {
 // GetCompressedJSON returns compressed JSON data.
 func (gp *GzipPool) GetCompressedJSON(m any) ([]byte, error) {
 	w, err := gp.getWriter()
-
 	if err != nil {
 		return nil, fmt.Errorf("get writer: %w", err)
 	}
@@ -66,7 +76,6 @@ func (gp *GzipPool) GetCompressedJSON(m any) ([]byte, error) {
 	defer gp.putWriter(w)
 
 	j, err := json.Marshal(m)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed model marshal: %w", err)
 	}
@@ -91,50 +100,59 @@ func (gp *GzipPool) GetCompressedJSON(m any) ([]byte, error) {
 func (gp *GzipPool) RequestCompress(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentEncoding := r.Header.Get("Content-Encoding")
-		sendsGzip := strings.Contains(contentEncoding, "gzip")
+		sendsGzip := strings.Contains(contentEncoding, contentEncodingGZIP)
 
 		if sendsGzip {
 			zr, err := gp.getReader()
-
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			err = zr.Reset(r.Body)
-
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			r.Body = &compressReader{ReadCloser: r.Body, Reader: zr}
-			defer r.Body.Close()
+			defer func() {
+				err := r.Body.Close()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}()
+
 			defer gp.putReader(zr)
 		}
 
 		acceptEncoding := r.Header.Get("Accept-Encoding")
-		supportsGzip := strings.Contains(acceptEncoding, "gzip")
+		supportsGzip := strings.Contains(acceptEncoding, contentEncodingGZIP)
 
 		switch {
 		case supportsGzip:
 			gw, err := gp.getWriter()
-
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
-			w.Header().Set("Content-Encoding", "gzip")
+			w.Header().Set("Content-Encoding", contentEncodingGZIP)
 			gw.Reset(w)
 			defer gp.putWriter(gw)
-			defer gw.Close()
+			defer func() {
+				err := gw.Close()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}()
 
 			next.ServeHTTP(&compressWriter{ResponseWriter: w, Writer: gw}, r)
 		default:
 			next.ServeHTTP(w, r)
 		}
-
 	})
 }
 
@@ -142,7 +160,7 @@ func (gp *GzipPool) getWriter() (*gzip.Writer, error) {
 	select {
 	case w, ok := <-gp.writerPool:
 		if !ok {
-			return nil, fmt.Errorf("pool is closed")
+			return nil, ErrClosedPoll
 		}
 
 		return w, nil
@@ -164,7 +182,7 @@ func (gp *GzipPool) getReader() (*gzip.Reader, error) {
 	select {
 	case r, ok := <-gp.readerPool:
 		if !ok {
-			return nil, fmt.Errorf("pool is closed")
+			return nil, ErrClosedPoll
 		}
 
 		return r, nil

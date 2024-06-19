@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/DarkOmap/metricsService/internal/file"
 	"github.com/DarkOmap/metricsService/internal/models"
+	"github.com/DarkOmap/metricsService/internal/parameters"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -283,7 +285,8 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
-				producer: producer,
+				producer:      producer,
+				storeInterval: 1,
 			}
 			got, err := ms.UpdateByMetrics(context.Background(), *tt.args.m)
 			if tt.wantErr {
@@ -291,6 +294,7 @@ func TestMemStorage_UpdateByMetrics(t *testing.T) {
 				return
 			}
 
+			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -430,7 +434,8 @@ func TestMemStorage_updateCounterByMetrics(t *testing.T) {
 				Counters: counters{
 					Data: tt.fields.Counters,
 				},
-				producer: producer,
+				producer:      producer,
+				storeInterval: 1,
 			}
 			got, err := ms.updateCounterByMetrics(tt.args.id, tt.args.delta)
 			if tt.wantErr {
@@ -452,7 +457,7 @@ func TestMemStorage_updateGaugeByMetrics(t *testing.T) {
 	defer producer.Close()
 	var (
 		testGauge1 Gauge = 1.1
-		testGauge2 Gauge = 0
+		testGauge2 Gauge
 	)
 	type fields struct {
 		Gauges   map[string]Gauge
@@ -616,68 +621,178 @@ func TestMemStorage_valueGaugeByMetrics(t *testing.T) {
 	}
 }
 
-func TestMemStorage_GetAllGauge(t *testing.T) {
-	type fields struct {
-		Gauges   map[string]Gauge
-		Counters map[string]Counter
-	}
-	tests := []struct {
-		name       string
-		fields     fields
-		wantRetMap map[string]Gauge
-	}{
-		{
-			name:       "get all Gauges",
-			fields:     fields{Gauges: map[string]Gauge{"test1": 1, "test2": 2, "test3": 3}},
-			wantRetMap: map[string]Gauge{"test1": 1, "test2": 2, "test3": 3},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ms := &MemStorage{
-				Gauges: gauges{
-					Data: tt.fields.Gauges,
-				},
-				Counters: counters{
-					Data: tt.fields.Counters,
-				},
-				producer: &file.Producer{},
-			}
-			gotRetMap, _ := ms.GetAllGauge(context.Background())
-			assert.Equal(t, tt.wantRetMap, gotRetMap)
+func TestNewMemStorage(t *testing.T) {
+	t.Run("positive test", func(t *testing.T) {
+		defer os.Remove("./test")
+
+		ms, err := NewMemStorage(context.Background(), parameters.ServerParameters{
+			StoreInterval:   0,
+			Restore:         false,
+			FileStoragePath: "./test",
 		})
-	}
+		require.NoError(t, err)
+		ms.Close()
+	})
+
+	t.Run("positive test with store interval", func(t *testing.T) {
+		defer os.Remove("./test")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ms, err := NewMemStorage(ctx, parameters.ServerParameters{
+			StoreInterval:   1,
+			Restore:         false,
+			FileStoragePath: "./test",
+		})
+
+		require.NoError(t, err)
+		ms.Close()
+	})
+
+	t.Run("positive test restore", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ms, err := NewMemStorage(ctx, parameters.ServerParameters{
+			StoreInterval:   0,
+			Restore:         true,
+			FileStoragePath: "./testdata/positive_test_data.json",
+		})
+
+		wantGauges := map[string]Gauge{
+			"TestGauge": 1,
+		}
+
+		wantCounters := map[string]Counter{
+			"TestCounter": 2,
+		}
+
+		require.NoError(t, err)
+		defer ms.Close()
+		defer ms.dumpStorage()
+		require.Equal(t, wantGauges, ms.Gauges.Data)
+		require.Equal(t, wantCounters, ms.Counters.Data)
+	})
+
+	t.Run("test error new consumer", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		_, err := NewMemStorage(ctx, parameters.ServerParameters{
+			StoreInterval:   0,
+			Restore:         true,
+			FileStoragePath: "./testdata//",
+		})
+
+		require.Error(t, err)
+	})
+
+	t.Run("test error decode", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		_, err := NewMemStorage(ctx, parameters.ServerParameters{
+			StoreInterval:   0,
+			Restore:         true,
+			FileStoragePath: "./testdata/invalid_test_data",
+		})
+
+		require.Error(t, err)
+	})
+
+	t.Run("test error update by metrics", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		_, err := NewMemStorage(ctx, parameters.ServerParameters{
+			StoreInterval:   0,
+			Restore:         true,
+			FileStoragePath: "./testdata/negative_test_data.json",
+		})
+
+		require.Error(t, err)
+	})
 }
 
-func TestMemStorage_GetAllCounter(t *testing.T) {
-	type fields struct {
-		Gauges   map[string]Gauge
-		Counters map[string]Counter
-	}
-	tests := []struct {
-		name       string
-		fields     fields
-		wantRetMap map[string]Counter
-	}{
-		{
-			name:       "get all caounters",
-			fields:     fields{Counters: map[string]Counter{"test1": 1, "test2": 2, "test3": 3}},
-			wantRetMap: map[string]Counter{"test1": 1, "test2": 2, "test3": 3},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ms := &MemStorage{
-				Gauges: gauges{
-					Data: tt.fields.Gauges,
+func TestMemStorage_dumpStorage(t *testing.T) {
+	t.Run("positive test", func(t *testing.T) {
+		pathToTest := "./testdata/testproducer"
+		producer, err := file.NewProducer(pathToTest)
+		require.NoError(t, err)
+
+		defer os.Remove(pathToTest)
+
+		ms := MemStorage{
+			producer: producer,
+			Gauges: gauges{
+				Data: map[string]Gauge{
+					"test": 1,
 				},
-				Counters: counters{
-					Data: tt.fields.Counters,
+			},
+			Counters: counters{
+				Data: map[string]Counter{
+					"test": 2,
 				},
-				producer: &file.Producer{},
-			}
-			gotRetMap, _ := ms.GetAllCounter(context.Background())
-			assert.Equal(t, tt.wantRetMap, gotRetMap)
-		})
-	}
+			},
+		}
+
+		wantLine1 := []byte(`{"value":1,"id":"test","type":"gauge"}`)
+		wantLine2 := []byte(`{"delta":2,"id":"test","type":"counter"}`)
+
+		err = ms.dumpStorage()
+		require.NoError(t, err)
+		producer.Close()
+
+		file, err := os.OpenFile(pathToTest, os.O_RDONLY|os.O_CREATE, 0o666)
+		require.NoError(t, err)
+
+		r := bufio.NewReader(file)
+
+		line, _, err := r.ReadLine()
+		require.NoError(t, err)
+		require.Equal(t, line, wantLine1)
+
+		line, _, err = r.ReadLine()
+		require.NoError(t, err)
+		require.Equal(t, line, wantLine2)
+	})
+
+	t.Run("negative test gauges", func(t *testing.T) {
+		pathToTest := "./testdata/testproducer"
+		producer, err := file.NewProducer(pathToTest)
+		require.NoError(t, err)
+
+		producer.Close()
+
+		defer os.Remove(pathToTest)
+
+		ms := MemStorage{
+			producer: producer,
+			Gauges: gauges{
+				Data: map[string]Gauge{
+					"test": 1,
+				},
+			},
+		}
+
+		err = ms.dumpStorage()
+		require.Error(t, err)
+	})
+
+	t.Run("negative test counters", func(t *testing.T) {
+		pathToTest := "./testdata/testproducer"
+		producer, err := file.NewProducer(pathToTest)
+		require.NoError(t, err)
+
+		producer.Close()
+
+		defer os.Remove(pathToTest)
+
+		ms := MemStorage{
+			producer: producer,
+			Counters: counters{
+				Data: map[string]Counter{
+					"test": 2,
+				},
+			},
+		}
+
+		err = ms.dumpStorage()
+		require.Error(t, err)
+	})
 }

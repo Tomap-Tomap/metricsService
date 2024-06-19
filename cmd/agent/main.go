@@ -3,19 +3,15 @@
 package main
 
 import (
-	"cmp"
 	"context"
-	"fmt"
 	"os/signal"
 	"syscall"
 
 	_ "net/http/pprof"
 
 	"github.com/DarkOmap/metricsService/internal/agent"
-	"github.com/DarkOmap/metricsService/internal/certmanager"
+	"github.com/DarkOmap/metricsService/internal/build"
 	"github.com/DarkOmap/metricsService/internal/client"
-	"github.com/DarkOmap/metricsService/internal/compresses"
-	"github.com/DarkOmap/metricsService/internal/hasher"
 	"github.com/DarkOmap/metricsService/internal/logger"
 	"github.com/DarkOmap/metricsService/internal/memstats"
 	"github.com/DarkOmap/metricsService/internal/parameters"
@@ -29,33 +25,30 @@ var (
 )
 
 func main() {
-	displayBuild(buildVersion, buildDate, buildCommit)
+	build.DisplayBuild(buildVersion, buildDate, buildCommit)
 	p := parameters.ParseFlagsAgent()
 
 	if err := logger.Initialize("INFO", "stderr"); err != nil {
 		panic(err)
 	}
 
-	logger.Log.Info("Create encrypt manager")
-	em, err := certmanager.NewEncryptManager(p.CryptoKeyPath)
-
+	logger.Log.Info("Create client")
+	c, err := client.NewClient(p)
 	if err != nil {
-		logger.Log.Fatal("Create encrypt manager", zap.Error(err))
+		logger.Log.Fatal("Create client", zap.Error(err))
 	}
 
-	logger.Log.Info("Create gzip pool")
-	pool := compresses.NewGzipPool(p.RateLimit)
-	defer pool.Close()
-	logger.Log.Info("Create hasher pool")
-	h := hasher.NewHasher([]byte(p.HashKey), p.RateLimit)
-	defer h.Close()
-	logger.Log.Info("Create client")
-	c := client.NewClient(pool, em, h, p.ListenAddr)
-	logger.Log.Info("Init mem stats")
-	ms, err := memstats.NewMemStatsForServer()
+	defer func() {
+		err := c.Close()
+		if err != nil {
+			logger.Log.Fatal("Close client", zap.Error(err))
+		}
+	}()
 
+	logger.Log.Info("Init mem stats")
+	ms, err := memstats.NewForServer()
 	if err != nil {
-		logger.Log.Fatal("create mem stats", zap.Error(err))
+		logger.Log.Fatal("Create mem stats", zap.Error(err))
 	}
 
 	logger.Log.Info("Create agent")
@@ -70,16 +63,4 @@ func main() {
 	if err != nil {
 		logger.Log.Fatal("Run agent", zap.Error(err))
 	}
-}
-
-func displayBuild(version, date, commit string) (string, string, string) {
-	version = cmp.Or(version, "N/A")
-	date = cmp.Or(date, "N/A")
-	commit = cmp.Or(commit, "N/A")
-
-	fmt.Printf("Build version: %s\n", version)
-	fmt.Printf("Build date: %s\n", date)
-	fmt.Printf("Build commit: %s\n", commit)
-
-	return version, date, commit
 }
